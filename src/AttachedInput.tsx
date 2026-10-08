@@ -14,22 +14,19 @@ type OnChange = (patch: FormPatch | FormPatch[] | PatchEvent) => void
 export function AttachedInput({signals, ...props}: InputProps & {signals: JevSignals}) {
   const parentOnChange: OnChange = props.onChange
   const {value} = props
-  // Signals only evaluate on their own after an edit made here, never because someone
-  // else's edit arrived, so opening a document never writes to it.
-  const [touched, setTouched] = useState(false)
-  const onChange: OnChange = (patch) => {
-    setTouched(true)
-    parentOnChange(patch)
-  }
-  const inputProps: InputProps = {...props, onChange}
-
   const jev = useSignals({
     signals,
     path: props.path,
     state: toText(value),
-    touched,
     readOnly: !!props.readOnly,
   })
+  // Signals only evaluate on their own after an edit made here, never because someone
+  // else's edit arrived, so opening a document never writes to it.
+  const onChange: OnChange = (patch) => {
+    jev.localEdit()
+    parentOnChange(patch)
+  }
+  const inputProps: InputProps = {...props, onChange}
 
   const [selected, setSelected] = useState<string | null>(null)
   const [keyDialogOpen, setKeyDialogOpen] = useState(false)
@@ -45,7 +42,7 @@ export function AttachedInput({signals, ...props}: InputProps & {signals: JevSig
           onSelect={setSelected}
           setup={jev.setup}
           canRun={jev.canRun}
-          loading={jev.signals.some((signal) => signal.loading)}
+          loading={jev.loading}
           onRunAll={jev.runAll}
           onSetUp={() => setKeyDialogOpen(true)}
         />
@@ -54,7 +51,7 @@ export function AttachedInput({signals, ...props}: InputProps & {signals: JevSig
         <SignalDetail
           signal={selectedSignal}
           empty={jev.empty}
-          onRetry={() => jev.run([selectedSignal.key])}
+          onRetry={() => jev.run(selectedSignal.key)}
           onUpdateKey={jev.keyInSecrets ? () => setKeyDialogOpen(true) : undefined}
         />
       )}
