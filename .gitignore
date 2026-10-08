@@ -1,0 +1,18 @@
+node_modules
+dist
+*.tsbuildinfo
+*.tgz
+*.log
+coverage
+.DS_Store
+
+# Editor and agent settings stay local
+.claude
+.zed
+.vscode
+.idea
+
+# Local secrets: the AI Gateway key for recording fixtures
+.env
+.env.*
+!.env.example

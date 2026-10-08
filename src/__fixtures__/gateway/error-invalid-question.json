@@ -1,0 +1,21 @@
+{
+  "request": {
+    "model": "typesafe-ai/jev",
+    "state": "Last year we rewrote our help centre. Support tickets dropped by a third, according to our own dashboard. You can do the same: start with the ten most-read pages.",
+    "questions": {
+      "q": {
+        "type": "score",
+        "instructions": "Rate it",
+        "criteria": ["only one criterion"]
+      }
+    }
+  },
+  "status": 400,
+  "response": {
+    "error": {
+      "message": "questions.q.criteria: Too small: expected array to have >=2 items",
+      "param": null,
+      "type": "invalid_request_error"
+    }
+  }
+}

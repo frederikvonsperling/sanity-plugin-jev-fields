@@ -1,0 +1,21 @@
+{
+  "request": {
+    "model": "typesafe-ai/jev",
+    "state": "Last year we rewrote our help centre. Support tickets dropped by a third, according to our own dashboard. You can do the same: start with the ten most-read pages.",
+    "questions": {
+      "q": {
+        "type": "score",
+        "instructions": "Rate it",
+        "criteria": ["low", "high"]
+      }
+    }
+  },
+  "status": 401,
+  "response": {
+    "error": {
+      "message": "Authentication failed",
+      "param": null,
+      "type": "authentication_error"
+    }
+  }
+}
