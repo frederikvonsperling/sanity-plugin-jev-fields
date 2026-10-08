@@ -1,32 +1,38 @@
 import {SparklesIcon} from '@sanity/icons/Sparkles'
 import {definePlugin} from 'sanity'
 
-import {signalsOf} from './answers'
+import {questionsOf} from './answers'
 import {AttachedInput} from './AttachedInput'
 import {JevFormProvider} from './context'
 import {jevLocaleBundle} from './i18n'
 import {JevTool} from './JevTool'
 import {KIND_SCHEMA_TYPES} from './kinds'
-import type {JevSignals} from './signals'
+import type {JevQuestions} from './questions'
 import type {JevPluginConfig} from './types'
 
 export type * from './types'
-export type {JevAnswer, JevQuestion, JevRequest, JevTransport} from './evaluate'
-export type {ChoiceSignal, JevSignal, JevSignals, NoulSignal, ScoreSignal} from './signals'
+export type {GatewayAnswer, GatewayQuestion, JevRequest, JevTransport} from './evaluate'
+export type {
+  ChoiceQuestion,
+  JevQuestion,
+  JevQuestions,
+  NoulQuestion,
+  ScoreQuestion,
+} from './questions'
 export type {ChoiceRule, RangeRule} from './kinds'
-export {choice, noul, score} from './signals'
+export {choice, noul, score} from './questions'
 export {withJevAnswers} from './answers'
 export {JEV_NAMESPACE, type JevTranslationKey} from './i18n'
 
 declare module 'sanity' {
   interface BaseSchemaTypeOptions {
-    /** Jev signals shown on this field, keyed by the name of the field storing each answer. */
-    jev?: JevSignals
+    /** Jev questions shown on this field, keyed by the name of the field storing each answer. */
+    jev?: JevQuestions
   }
 }
 
 /**
- * Jev signals for Sanity Studio: yes/no, score and choice questions attached to a field with
+ * Jev questions for Sanity Studio: yes/no, score and choice questions attached to a field with
  * `options.jev`, answered by TypeSafe's Jev model through Vercel AI Gateway. Pair it with
  * `withJevAnswers(schemaTypes)` in `schema.types`.
  * @public
@@ -57,9 +63,9 @@ export const jev = definePlugin<JevPluginConfig | void>((config) => {
               <JevFormProvider config={pluginConfig}>{props.renderDefault(props)}</JevFormProvider>
             )
           }
-          const signals = signalsOf(props.schemaType)
-          return signals ? (
-            <AttachedInput {...props} signals={signals} />
+          const questions = questionsOf(props.schemaType)
+          return questions ? (
+            <AttachedInput {...props} questions={questions} />
           ) : (
             props.renderDefault(props)
           )

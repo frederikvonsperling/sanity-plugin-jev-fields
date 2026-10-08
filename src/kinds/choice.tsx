@@ -16,11 +16,11 @@ import {
   type EvaluatedValue,
   type Kind,
   type RuleLevel,
-  type SignalBase,
+  type QuestionBase,
 } from './kind'
 
 /** @public */
-export interface ChoiceSignal extends SignalBase {
+export interface ChoiceQuestion extends QuestionBase {
   type: 'choice'
   /** Two to 255 options: option name → what it means. */
   criteria: Record<string, string>
@@ -35,12 +35,12 @@ export interface ChoiceRule {
   oneOf: string[]
 }
 
-/** Why a choice signal can't be asked, if it can't. */
-function choiceProblem(signal: ChoiceSignal, options: string[]): string | undefined {
-  if (options.length < 2) return 'A choice signal needs at least two options.'
-  if (options.length > 255) return 'A choice signal allows at most 255 options.'
+/** Why a choice question can't be asked, if it can't. */
+function choiceProblem(question: ChoiceQuestion, options: string[]): string | undefined {
+  if (options.length < 2) return 'A choice question needs at least two options.'
+  if (options.length > 255) return 'A choice question allows at most 255 options.'
   for (const level of ['warn', 'require'] as const satisfies RuleLevel[]) {
-    const rule = signal[level]
+    const rule = question[level]
     if (!rule) continue
     if (!Array.isArray(rule.oneOf) || rule.oneOf.length === 0) {
       return `\`${level}.oneOf\` must list at least one option.`
@@ -53,9 +53,9 @@ function choiceProblem(signal: ChoiceSignal, options: string[]): string | undefi
 }
 
 /** One option from a named set. @public */
-export const choice = (signal: Omit<ChoiceSignal, 'type'>): ChoiceSignal => ({
+export const choice = (question: Omit<ChoiceQuestion, 'type'>): ChoiceQuestion => ({
   type: 'choice',
-  ...signal,
+  ...question,
 })
 
 interface ChoiceProbability {
@@ -104,14 +104,14 @@ export const choiceSchemaTypes = [
   }),
 ]
 
-export function bindChoice(signal: ChoiceSignal): Kind {
-  const criteria = signal.criteria ?? {}
-  const problem = choiceProblem(signal, Object.keys(criteria))
+export function bindChoice(question: ChoiceQuestion): Kind {
+  const criteria = question.criteria ?? {}
+  const problem = choiceProblem(question, Object.keys(criteria))
 
   return {
     typeName: TYPE_NAMES.choice,
-    question: !problem
-      ? {type: 'choice', instructions: signal.instructions, criteria: signal.criteria}
+    gatewayQuestion: !problem
+      ? {type: 'choice', instructions: question.instructions, criteria: question.criteria}
       : undefined,
     problem,
 
@@ -154,13 +154,15 @@ export function bindChoice(signal: ChoiceSignal): Kind {
         chip: {text: capitalize(record.choice), color: NEUTRAL_COLOR},
         tone: 'default',
         aside: meaning ? {note: meaning} : undefined,
-        body: <ChoiceBody signal={signal} choice={record.choice} probabilities={probabilities} />,
+        body: (
+          <ChoiceBody question={question} choice={record.choice} probabilities={probabilities} />
+        ),
       }
     },
 
     check(level, stored, title) {
       const record = storedOf(stored, TYPE_NAMES.choice)
-      const rule = signal[level]
+      const rule = question[level]
       if (!record || typeof record.choice !== 'string' || !rule?.oneOf) return undefined
       if (rule.oneOf.includes(record.choice)) return undefined
       return `${title} is "${record.choice}", not ${rule.oneOf.map((option) => `"${option}"`).join(' or ')}.`
@@ -169,15 +171,15 @@ export function bindChoice(signal: ChoiceSignal): Kind {
 }
 
 function ChoiceBody({
-  signal,
+  question,
   choice,
   probabilities,
 }: {
-  signal: ChoiceSignal
+  question: ChoiceQuestion
   choice: string
   probabilities: ChoiceProbability[]
 }) {
-  const options = Object.keys(signal.criteria)
+  const options = Object.keys(question.criteria)
   const nameWidth = `${Math.max(...options.map((name) => name.length), 4) + 2}ch`
   return (
     <Stack gap={3}>

@@ -4,26 +4,26 @@ import {useTranslation, type FormPatch, type InputProps, type PatchEvent} from '
 
 import {estimateTokens, nearTokenLimit, STATE_TOKEN_LIMIT, toText} from './content'
 import {JEV_NAMESPACE} from './i18n'
+import type {JevQuestions} from './questions'
 import {JevKeyDialog} from './secrets'
-import type {JevSignals} from './signals'
-import {SignalDetail, SignalStrip} from './ui'
-import {useSignals} from './useSignals'
+import {QuestionDetail, QuestionStrip} from './ui'
+import {useQuestions} from './useQuestions'
 
 type OnChange = (patch: FormPatch | FormPatch[] | PatchEvent) => void
 
-/** Renders a field with `options.jev` as usual, with its signal strip and details below. */
-export function AttachedInput({signals, ...props}: InputProps & {signals: JevSignals}) {
+/** Renders a field with `options.jev` as usual, with its question strip and details below. */
+export function AttachedInput({questions, ...props}: InputProps & {questions: JevQuestions}) {
   const {t} = useTranslation(JEV_NAMESPACE)
   const parentOnChange: OnChange = props.onChange
   const {value} = props
   const state = toText(value)
-  const jev = useSignals({
-    signals,
+  const jev = useQuestions({
+    questions,
     path: props.path,
     state,
     readOnly: !!props.readOnly,
   })
-  // Signals only evaluate on their own after an edit made here, never because someone
+  // Questions only evaluate on their own after an edit made here, never because someone
   // else's edit arrived, so opening a document never writes to it.
   const onChange: OnChange = (patch) => {
     jev.localEdit()
@@ -33,14 +33,14 @@ export function AttachedInput({signals, ...props}: InputProps & {signals: JevSig
 
   const [selected, setSelected] = useState<string | null>(null)
   const [keyDialogOpen, setKeyDialogOpen] = useState(false)
-  const selectedSignal = jev.signals.find((signal) => signal.key === selected)
+  const selectedQuestion = jev.questions.find((question) => question.key === selected)
 
   return (
     <Stack gap={2}>
       <div>
         {props.renderDefault(inputProps)}
-        <SignalStrip
-          signals={jev.signals}
+        <QuestionStrip
+          questions={jev.questions}
           selected={selected}
           onSelect={setSelected}
           setup={jev.setup}
@@ -60,11 +60,11 @@ export function AttachedInput({signals, ...props}: InputProps & {signals: JevSig
           </Text>
         </Card>
       )}
-      {selectedSignal && (
-        <SignalDetail
-          signal={selectedSignal}
+      {selectedQuestion && (
+        <QuestionDetail
+          question={selectedQuestion}
           empty={jev.empty}
-          onRetry={() => jev.run(selectedSignal.key)}
+          onRetry={() => jev.run(selectedQuestion.key)}
           onUpdateKey={jev.keyInSecrets ? () => setKeyDialogOpen(true) : undefined}
         />
       )}

@@ -13,15 +13,15 @@ import {pathKey, useJevForm} from './context'
 import {DEFAULT_MODEL, DEFAULT_TAGS, gatewayTransport} from './evaluate'
 import type {StoredValue} from './kinds'
 import {createLifecycle} from './lifecycle'
+import type {JevQuestions} from './questions'
 import {useKeySource} from './secrets'
-import type {JevSignals} from './signals'
 
-export type {SignalView} from './lifecycle'
+export type {QuestionView} from './lifecycle'
 
 const NO_ANSWERS: Record<string, unknown> = {}
 
 interface Args {
-  signals: JevSignals
+  questions: JevQuestions
   /** Path of the attached field. Answers are stored next to it. */
   path: Path
   /** The attached field's value, flattened to text. */
@@ -30,7 +30,7 @@ interface Args {
 }
 
 /** Connects the Evaluation lifecycle of one attached field to the Studio's form. */
-export function useSignals({signals, path, state, readOnly}: Args) {
+export function useQuestions({questions, path, state, readOnly}: Args) {
   const {config, writers} = useJevForm()
   const parentPath = useMemo(() => path.slice(0, -1), [path])
 
@@ -49,7 +49,7 @@ export function useSignals({signals, path, state, readOnly}: Args) {
   const parent = useFormValue(parentPath)
   const documentType = useFormValue(['_type'])
 
-  // Each answer is stored next to the attached field, in the field named after its signal.
+  // Each answer is stored next to the attached field, in the field named after its question.
   const store = useCallback(
     (key: string, value: StoredValue) => {
       const write = writers.get(pathKey([...parentPath, key]))
@@ -76,7 +76,7 @@ export function useSignals({signals, path, state, readOnly}: Args) {
   const [lifecycle] = useState(() => createLifecycle())
   useLayoutEffect(() => {
     lifecycle.update({
-      signals,
+      questions,
       state,
       answers: isRecord(parent) ? parent : NO_ANSWERS,
       transport,

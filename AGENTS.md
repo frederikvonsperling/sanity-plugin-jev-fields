@@ -9,7 +9,7 @@ A PR that changes what users get from npm (behaviour in `src/`, exports, types, 
 'sanity-plugin-jev-fields': patch
 ---
 
-Signals re-evaluate after an undo, too.
+Questions are re-evaluated after an undo, too.
 ```
 
 - **Bump level while on 0.x:** `minor` for breaking changes and new features, `patch` for fixes. `major` releases 1.0.0, which freezes the stored answer shapes: reserve it for that deliberate release.
@@ -18,5 +18,5 @@ Signals re-evaluate after an undo, too.
 
 ## Vocabulary and decisions
 
-- [`CONTEXT.md`](./CONTEXT.md) defines the domain language (signal, attached field, state, criteria…): use its terms in code, docs and changesets.
+- [`CONTEXT.md`](./CONTEXT.md) defines the domain language (question, attached field, state, criteria…): use its terms in code, docs and changesets.
 - [`docs/adr`](./docs/adr) records why the plugin is built as it is: read it before changing how answers are stored, the type names, the Gateway, or where the API key lives.

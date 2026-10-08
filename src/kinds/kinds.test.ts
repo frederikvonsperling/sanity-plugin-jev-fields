@@ -3,32 +3,32 @@ import {describe, expect, it} from 'vitest'
 import choiceFixture from '../__fixtures__/gateway/choice.json'
 import noulFixture from '../__fixtures__/gateway/noul.json'
 import scoreFixture from '../__fixtures__/gateway/score.json'
-import type {JevAnswer} from '../evaluate'
+import type {GatewayAnswer} from '../evaluate'
 import {choice, KIND_SCHEMA_TYPES, kindOf, noul, score} from './index'
 import {meaningOf, segmentFills, shortLabel} from './score'
 
 // JSON imports lose the literal types of the recorded answers.
 const answerOf = (fixture: {response: {answers: {q: unknown}}}) =>
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  fixture.response.answers.q as JevAnswer
+  fixture.response.answers.q as GatewayAnswer
 
 const readable = noul({instructions: 'Easy?', true: 'Yes', false: 'No', label: 'likely'})
 const evidence = score({instructions: 'Rate', criteria: ['none: a', 'some: b', 'all: c']})
 const tone = choice({instructions: 'Tone?', criteria: {formal: 'Reserved', casual: 'Relaxed'}})
 
 describe('questions', () => {
-  it('turns each signal into the question Jev answers', () => {
-    expect(kindOf(readable).question).toEqual({
+  it('turns each question into the request Jev answers', () => {
+    expect(kindOf(readable).gatewayQuestion).toEqual({
       type: 'boolean',
       instructions: 'Easy?',
       criteria: {true: 'Yes', false: 'No'},
     })
-    expect(kindOf(evidence).question).toEqual({
+    expect(kindOf(evidence).gatewayQuestion).toEqual({
       type: 'score',
       instructions: 'Rate',
       criteria: ['none: a', 'some: b', 'all: c'],
     })
-    expect(kindOf(tone).question).toMatchObject({type: 'choice', criteria: tone.criteria})
+    expect(kindOf(tone).gatewayQuestion).toMatchObject({type: 'choice', criteria: tone.criteria})
   })
 
   it.each([
@@ -40,13 +40,13 @@ describe('questions', () => {
       'at most ten',
     ],
     [choice({instructions: 'Tone?', criteria: {a: 'A'}}), 'at least two'],
-  ])('explains config that cannot be asked: %#', (signal, problem) => {
-    const kind = kindOf(signal)
-    expect(kind.question).toBeUndefined()
+  ])('explains config that cannot be asked: %#', (question, problem) => {
+    const kind = kindOf(question)
+    expect(kind.gatewayQuestion).toBeUndefined()
     expect(kind.problem).toContain(problem)
   })
 
-  it('explains an unknown signal type', () => {
+  it('explains an unknown question type', () => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config from plain JS
     const kind = kindOf({type: 'rating', instructions: 'x'} as unknown as typeof readable)
     expect(kind.problem).toMatch(/unknown/i)
@@ -111,30 +111,33 @@ describe('stored answers', () => {
       }),
       answerOf(choiceFixture),
     ],
-  ])('stores a recorded %s answer in fields its schema type declares', (_name, signal, answer) => {
-    const kind = kindOf(signal)
-    const stored = kind.toStored(answer)
-    const fieldsOf = (name: string) => {
-      const type = KIND_SCHEMA_TYPES.find((other) => other.name === name)
-      return type && 'fields' in type ? type.fields.map((field) => field.name) : []
-    }
+  ])(
+    'stores a recorded %s answer in fields its schema type declares',
+    (_name, question, answer) => {
+      const kind = kindOf(question)
+      const stored = kind.toStored(answer)
+      const fieldsOf = (name: string) => {
+        const type = KIND_SCHEMA_TYPES.find((other) => other.name === name)
+        return type && 'fields' in type ? type.fields.map((field) => field.name) : []
+      }
 
-    const fields = fieldsOf(kind.typeName)
-    expect(fields).toEqual(expect.arrayContaining(['evaluatedAt', 'model', 'sourceHash']))
-    for (const [key, value] of Object.entries(stored)) {
-      if (key === '_type') continue
-      expect(fields).toContain(key)
-      if (Array.isArray(value)) {
-        for (const entry of value) {
-          const member = fieldsOf(entry._type)
-          for (const memberKey of Object.keys(entry)) {
-            if (!memberKey.startsWith('_')) expect(member).toContain(memberKey)
+      const fields = fieldsOf(kind.typeName)
+      expect(fields).toEqual(expect.arrayContaining(['evaluatedAt', 'model', 'sourceHash']))
+      for (const [key, value] of Object.entries(stored)) {
+        if (key === '_type') continue
+        expect(fields).toContain(key)
+        if (Array.isArray(value)) {
+          for (const entry of value) {
+            const member = fieldsOf(entry._type)
+            for (const memberKey of Object.keys(entry)) {
+              if (!memberKey.startsWith('_')) expect(member).toContain(memberKey)
+            }
           }
         }
       }
-    }
-    expect(kind.read({...stored, sourceHash: 'h'})?.value).toEqual({...stored, sourceHash: 'h'})
-  })
+      expect(kind.read({...stored, sourceHash: 'h'})?.value).toEqual({...stored, sourceHash: 'h'})
+    },
+  )
 })
 
 describe('reading stored answers', () => {
@@ -241,11 +244,11 @@ describe('rules', () => {
         instructions: 'Which?',
         criteria: Object.fromEntries(Array.from({length: 256}, (_, i) => [`o${i}`, `${i}`])),
       }),
-      'A choice signal allows at most 255 options.',
+      'A choice question allows at most 255 options.',
     ],
-  ])('explains a rule or limit that cannot work: %#', (signal, problem) => {
-    const kind = kindOf(signal)
+  ])('explains a rule or limit that cannot work: %#', (question, problem) => {
+    const kind = kindOf(question)
     expect(kind.problem).toBe(problem)
-    expect(kind.question).toBeUndefined()
+    expect(kind.gatewayQuestion).toBeUndefined()
   })
 })

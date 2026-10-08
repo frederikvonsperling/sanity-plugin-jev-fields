@@ -2,7 +2,7 @@ import {defineArrayMember, defineField, defineType} from 'sanity'
 import {describe, expect, it} from 'vitest'
 
 import {withJevAnswers} from './answers'
-import {noul, score} from './signals'
+import {noul, score} from './questions'
 
 const readable = noul({instructions: 'Easy?', true: 'Yes', false: 'No'})
 const evidence = score({instructions: 'Sourced?', criteria: ['none', 'some']})
@@ -11,7 +11,7 @@ const names = (fields: {name: string; type: string}[] = []) =>
   fields.map((field) => `${field.name}:${field.type}`)
 
 describe('withJevAnswers', () => {
-  it('adds an answer field right after each field with signals', () => {
+  it('adds an answer field right after each field with questions', () => {
     const [article] = withJevAnswers([
       defineType({
         name: 'article',
@@ -73,7 +73,7 @@ describe('withJevAnswers', () => {
     ])
   })
 
-  it('explains a signal whose name is taken by another field', () => {
+  it('explains a question whose name is taken by another field', () => {
     const type = defineType({
       name: 'article',
       type: 'document',
@@ -85,7 +85,7 @@ describe('withJevAnswers', () => {
     expect(() => withJevAnswers([type])).toThrow(/"readable" .* already taken/)
   })
 
-  it('leaves types without signals unchanged', () => {
+  it('leaves types without questions unchanged', () => {
     const type = defineType({
       name: 'plain',
       type: 'object',

@@ -5,9 +5,9 @@ import {Translate, useTranslation} from 'sanity'
 import {DEFAULT_MODEL, DEFAULT_TAGS, evaluateQuestion, gatewayTransport, JevError} from './evaluate'
 import {JEV_NAMESPACE} from './i18n'
 import {kindOf} from './kinds'
-import type {SignalError} from './lifecycle'
+import type {QuestionError} from './lifecycle'
+import {noul} from './questions'
 import {JevKeyDialog, useSaveKey, useStoredKey} from './secrets'
-import {noul} from './signals'
 import type {JevPluginConfig} from './types'
 import {errorText} from './ui'
 
@@ -20,15 +20,15 @@ const CONNECTION_TEST = kindOf(
     true: 'It is a test',
     false: 'It is not a test',
   }),
-).question
+).gatewayQuestion
 
 type TestState =
   | {state: 'idle'}
   | {state: 'running'}
   | {state: 'passed'; model: string}
-  | {state: 'failed'; error: SignalError}
+  | {state: 'failed'; error: QuestionError}
 
-const asSignalError = (error: unknown): SignalError =>
+const asQuestionError = (error: unknown): QuestionError =>
   error instanceof JevError
     ? {message: error.message, kind: error.kind, status: error.status, detail: error.detail}
     : {message: error instanceof Error ? error.message : String(error)}
@@ -61,7 +61,7 @@ export function JevTool({config}: {config: JevPluginConfig}) {
       })
       setTest({state: 'passed', model: result.model})
     } catch (error) {
-      setTest({state: 'failed', error: asSignalError(error)})
+      setTest({state: 'failed', error: asQuestionError(error)})
     }
   }
 

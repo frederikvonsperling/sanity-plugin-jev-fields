@@ -30,7 +30,7 @@ export function JevFormProvider({
 
 export function useJevForm(): JevFormContext {
   const context = useContext(Context)
-  if (!context) throw new Error('Jev signals need the jev() plugin in sanity.config.')
+  if (!context) throw new Error('Jev questions need the jev() plugin in sanity.config.')
   return context
 }
 

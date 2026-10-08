@@ -2,22 +2,22 @@ import {defineField, type Rule, type SchemaTypeDefinition} from 'sanity'
 
 import {kindOf, type RuleLevel} from './kinds'
 import {TYPE_NAMES} from './names'
-import {titleOf, type JevSignals} from './signals'
+import {titleOf, type JevQuestions} from './questions'
 
 type Definition = Record<string, unknown>
 
 const isRecord = (value: unknown): value is Definition =>
   !!value && typeof value === 'object' && !Array.isArray(value)
 
-export function signalsOf(definition: unknown): JevSignals | undefined {
+export function questionsOf(definition: unknown): JevQuestions | undefined {
   if (!isRecord(definition) || !isRecord(definition.options)) return undefined
   const {jev} = definition.options
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `options.jev` is typed for schema authors via declaration merging
-  return isRecord(jev) ? (jev as JevSignals) : undefined
+  return isRecord(jev) ? (jev as JevQuestions) : undefined
 }
 
 /**
- * Adds a field that stores each signal's answer next to every field with `options.jev`.
+ * Adds a field that stores each question's answer next to every field with `options.jev`.
  * Plugins can't see the Studio's own schema types, so wrap them in `sanity.config`:
  *
  * ```ts
@@ -47,9 +47,9 @@ function withAnswerFields(definition: unknown): unknown {
     )
     const fields = definition.fields.flatMap((field: unknown) => {
       const rewritten = withAnswerFields(field)
-      const signals = signalsOf(field)
-      if (!signals || !isRecord(field) || !isRecord(rewritten)) return [rewritten]
-      return [withRules(rewritten, signals), ...answerFieldsFor(field, signals, existing)]
+      const questions = questionsOf(field)
+      if (!questions || !isRecord(field) || !isRecord(rewritten)) return [rewritten]
+      return [withRules(rewritten, questions), ...answerFieldsFor(field, questions, existing)]
     })
     result = {...result, fields}
   }
@@ -57,21 +57,25 @@ function withAnswerFields(definition: unknown): unknown {
   return result
 }
 
-function answerFieldsFor(field: Definition, signals: JevSignals, existing: Map<unknown, unknown>) {
-  return Object.entries(signals).flatMap(([key, signal]) => {
-    const type = TYPE_NAMES[signal.type]
+function answerFieldsFor(
+  field: Definition,
+  questions: JevQuestions,
+  existing: Map<unknown, unknown>,
+) {
+  return Object.entries(questions).flatMap(([key, question]) => {
+    const type = TYPE_NAMES[question.type]
     if (existing.get(key) === type) return []
     if (existing.has(key)) {
       throw new Error(
-        `Jev: the signal "${key}" on "${String(field.name)}" needs a field called "${key}" to ` +
-          'store its answer, but that name is already taken. Rename the signal.',
+        `Jev: the question "${key}" on "${String(field.name)}" needs a field called "${key}" to ` +
+          'store its answer, but that name is already taken. Rename the question.',
       )
     }
     existing.set(key, type)
     return [
       defineField({
         name: key,
-        title: titleOf(key, signal),
+        title: titleOf(key, question),
         type,
         // Same group and fieldset as the attached field, so the answer field is mounted (and
         // can store answers) whenever the attached field is. Its type renders nothing.
@@ -86,13 +90,13 @@ function answerFieldsFor(field: Definition, signals: JevSignals, existing: Map<u
 const LEVELS: RuleLevel[] = ['warn', 'require']
 
 /**
- * Adds a validation rule to the attached field for each signal's `warn` and `require`, after
+ * Adds a validation rule to the attached field for each question's `warn` and `require`, after
  * the field's own validation. Rules judge the stored answer, so they say nothing until there is
  * one.
  */
-function withRules(field: Definition, signals: JevSignals): Definition {
-  const checks = Object.entries(signals).flatMap(([key, signal]) =>
-    LEVELS.filter((level) => signal[level]).map((level) => ({key, signal, level})),
+function withRules(field: Definition, questions: JevQuestions): Definition {
+  const checks = Object.entries(questions).flatMap(([key, question]) =>
+    LEVELS.filter((level) => question[level]).map((level) => ({key, question, level})),
   )
   if (checks.length === 0) return field
 
@@ -102,9 +106,9 @@ function withRules(field: Definition, signals: JevSignals): Definition {
       const result: unknown = typeof entry === 'function' ? entry(rule) : entry
       return Array.isArray(result) ? result : result ? [result] : []
     })
-    const jevRules = checks.map(({key, signal, level}) => {
-      const kind = kindOf(signal)
-      const title = titleOf(key, signal)
+    const jevRules = checks.map(({key, question, level}) => {
+      const kind = kindOf(question)
+      const title = titleOf(key, question)
       const custom = rule.custom((_value, context) => {
         const stored = isRecord(context.parent) ? context.parent[key] : undefined
         return kind.check(level, stored, title) ?? true
