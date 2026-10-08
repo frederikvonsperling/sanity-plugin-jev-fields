@@ -1,5 +1,15 @@
 # sanity-plugin-jev-fields
 
+## 0.2.0
+
+### Minor Changes
+
+- ba077fb: What was called a "signal" is now a "question", in the docs, the Studio and the types. `options.jev`, `noul()`, `score()`, `choice()` and stored answers are unchanged. If you import types, rename them:
+
+  - `JevSignal` → `JevQuestion`, `JevSignals` → `JevQuestions`
+  - `NoulSignal` → `NoulQuestion`, `ScoreSignal` → `ScoreQuestion`, `ChoiceSignal` → `ChoiceQuestion`
+  - The Gateway's request and response shapes, used with `transport`: `JevQuestion` → `GatewayQuestion`, `JevAnswer` → `GatewayAnswer`
+
 ## 0.1.1
 
 ### Patch Changes
