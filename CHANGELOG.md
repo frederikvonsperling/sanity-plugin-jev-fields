@@ -1,5 +1,11 @@
 # sanity-plugin-jev-fields
 
+## 0.1.1
+
+### Patch Changes
+
+- c505a68: The README now documents every plugin and signal option, the full shape of stored answers, and a proxy `transport` example that sends `Content-Type: application/json`.
+
 ## 0.1.0
 
 ### Minor Changes
