@@ -2,14 +2,14 @@ import type {ReactNode} from 'react'
 import {defineField} from 'sanity'
 
 import {isRecord} from '../content'
-import type {JevAnswer, JevQuestion} from '../evaluate'
+import type {GatewayAnswer, GatewayQuestion} from '../evaluate'
 import type {Tone} from '../look'
 import type {ChoiceValue} from './choice'
 import type {NoulValue} from './noul'
 import type {ScoreValue} from './score'
 
-export interface SignalBase {
-  /** Chip and detail heading. Defaults to the signal's key, e.g. `readable` → "Readable". */
+export interface QuestionBase {
+  /** Chip and detail heading. Defaults to the question's key, e.g. `readable` → "Readable". */
   title?: string
   /** The question Jev answers about the attached field. */
   instructions: string
@@ -50,20 +50,20 @@ export interface Reading {
   body: ReactNode
 }
 
-/** A signal bound to its kind (Noul, Score or Choice): everything that differs between them. */
+/** A question bound to its kind (Noul, Score or Choice): everything that differs between them. */
 export interface Kind {
   /** Schema type of the field that stores the answer, e.g. `jev.score`. */
   typeName: string
-  /** The question sent to Jev. Absent when the signal's config can't be asked: see `problem`. */
-  question?: JevQuestion
+  /** The question in the Gateway's shape. Absent when the config can't be asked: see `problem`. */
+  gatewayQuestion?: GatewayQuestion
   problem?: string
-  /** The value to store for Jev's answer to `question`, without the bookkeeping fields. */
-  toStored(answer: JevAnswer): StoredValue
+  /** The value to store for Jev's answer to `gatewayQuestion`, without the bookkeeping fields. */
+  toStored(answer: GatewayAnswer): StoredValue
   /** Reads a stored value. Anything that isn't a complete answer of this kind is unanswered. */
   read(stored: unknown): Reading | undefined
   /**
-   * What is wrong with a stored answer, judged by the signal's `warn` or `require` rule.
-   * Nothing when the rule holds, the signal has no such rule, or there is no answer.
+   * What is wrong with a stored answer, judged by the question's `warn` or `require` rule.
+   * Nothing when the rule holds, the question has no such rule, or there is no answer.
    */
   check(level: RuleLevel, stored: unknown, title: string): string | undefined
 }

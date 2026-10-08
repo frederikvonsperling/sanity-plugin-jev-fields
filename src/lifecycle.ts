@@ -1,7 +1,7 @@
 import {fingerprint} from './content'
 import {evaluateQuestion, JevError, type JevErrorKind, type JevTransport} from './evaluate'
 import {kindOf, type Kind, type Reading, type StoredValue} from './kinds'
-import {titleOf, type JevSignal, type JevSignals} from './signals'
+import {titleOf, type JevQuestion, type JevQuestions} from './questions'
 
 export interface Clock {
   now(): Date
@@ -19,43 +19,43 @@ const realClock: Clock = {
 
 /** Everything the lifecycle reads about one attached field. Passed whole on every update. */
 export interface LifecycleInputs {
-  signals: JevSignals
+  questions: JevQuestions
   /** The attached field's value, flattened to text. */
   state: string
-  /** Stored answers, by signal key. */
+  /** Stored answers, by question key. */
   answers: Record<string, unknown>
   /** How to reach the Gateway. Without one, nothing is evaluated. */
   transport?: JevTransport
-  /** Stores an answer in its signal's answer field. Throws if there is no such field. */
+  /** Stores an answer in its question's answer field. Throws if there is no such field. */
   store: (key: string, value: StoredValue) => void
   model: string
-  /** Reporting tags for every request. Each request also gets a tag naming its signal. */
+  /** Reporting tags for every request. Each request also gets a tag naming its question. */
   tags: string[]
-  /** Document type and field path the per-signal tag starts with, e.g. `['article', 'seo']`. */
+  /** Document type and field path the per-question tag starts with, e.g. `['article', 'seo']`. */
   tagPath: string[]
   readOnly: boolean
   debounceMs: number
 }
 
-export interface SignalView {
+export interface QuestionView {
   key: string
-  signal: JevSignal
+  question: JevQuestion
   title: string
-  /** Why the signal's config can't be asked, if it can't. */
+  /** Why the question's config can't be asked, if it can't. */
   problem?: string
-  /** The stored answer, as its kind reads it. Absent when the signal is unanswered. */
+  /** The stored answer, as its kind reads it. Absent when the question is unanswered. */
   reading?: Reading
   /** The stored answer's state, question or model has changed since it was evaluated. */
   stale: boolean
   /** Waiting to evaluate, or evaluating. */
   loading: boolean
   /** Why the last evaluation failed. Gateway errors also carry their kind, for translation. */
-  error: SignalError | null
+  error: QuestionError | null
   /** The Gateway rejected the API key on the last evaluation. */
   keyRejected: boolean
 }
 
-export interface SignalError {
+export interface QuestionError {
   /** In English. Shown as-is for errors that don't come from the Gateway. */
   message: string
   kind?: JevErrorKind
@@ -65,11 +65,11 @@ export interface SignalError {
 }
 
 export interface LifecycleSnapshot {
-  signals: SignalView[]
+  questions: QuestionView[]
   /** Evaluation is possible: there is a transport, content, and the field is editable. */
   canRun: boolean
   empty: boolean
-  /** Any signal is loading. */
+  /** Any question is loading. */
   loading: boolean
 }
 
@@ -77,7 +77,7 @@ export interface Lifecycle {
   update: (inputs: LifecycleInputs) => void
   /** Call just before handing a local edit to the form, so the resulting state counts as local. */
   localEdit: () => void
-  /** Evaluates the given signals (all by default) now, whoever edited the field last. */
+  /** Evaluates the given questions (all by default) now, whoever edited the field last. */
   run: (keys?: string[]) => void
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => LifecycleSnapshot
@@ -85,32 +85,34 @@ export interface Lifecycle {
   dispose: () => void
 }
 
-type Status = {state: 'loading'; hash: string} | {state: 'error'; hash: string; error: SignalError}
+type Status =
+  | {state: 'loading'; hash: string}
+  | {state: 'error'; hash: string; error: QuestionError}
 
 interface Entry {
   key: string
-  signal: JevSignal
+  question: JevQuestion
   kind: Kind
   title: string
   /** Fingerprint of the state, question and model: what a stored answer must match to be fresh. */
   hash: string
 }
 
-const EMPTY: LifecycleSnapshot = {signals: [], canRun: false, empty: true, loading: false}
+const EMPTY: LifecycleSnapshot = {questions: [], canRun: false, empty: true, loading: false}
 
 /**
- * The Evaluation lifecycle of the signals on one attached field. Signals evaluate on their own
+ * The Evaluation lifecycle of the questions on one attached field. Questions evaluate on their own
  * shortly after a local edit, only while the field's state is one this Studio produced; work for
  * a fingerprint that has since changed is cancelled and its answer dropped.
  */
 export function createLifecycle(clock: Clock = realClock): Lifecycle {
   let inputs: LifecycleInputs | undefined
   let entries: Entry[] = []
-  /** The state the last local edit produced. Signals only evaluate on their own for it. */
+  /** The state the last local edit produced. Questions only evaluate on their own for it. */
   let localState: string | undefined
   let expectLocal = false
 
-  // Requests, statuses and automatic attempts all belong to one fingerprint per signal.
+  // Requests, statuses and automatic attempts all belong to one fingerprint per question.
   const requests = new Map<string, {controller: AbortController; hash: string}>()
   const statuses = new Map<string, Status>()
   const attempted = new Map<string, string>()
@@ -134,18 +136,18 @@ export function createLifecycle(clock: Clock = realClock): Lifecycle {
 
     if (
       !previous ||
-      next.signals !== previous.signals ||
+      next.questions !== previous.questions ||
       next.state !== previous.state ||
       next.model !== previous.model
     ) {
-      entries = Object.entries(next.signals).map(([key, signal]) => {
-        const kind = kindOf(signal)
+      entries = Object.entries(next.questions).map(([key, question]) => {
+        const kind = kindOf(question)
         return {
           key,
-          signal,
+          question,
           kind,
-          title: titleOf(key, signal),
-          hash: fingerprint([next.state, kind.question ?? null, next.model]),
+          title: titleOf(key, question),
+          hash: fingerprint([next.state, kind.gatewayQuestion ?? null, next.model]),
         }
       })
       forgetObsoleteWork()
@@ -179,14 +181,14 @@ export function createLifecycle(clock: Clock = realClock): Lifecycle {
     }
   }
 
-  /** Signals that would evaluate on their own: unanswered or stale, and not tried yet. */
-  function pendingKeys(current: LifecycleInputs, views: SignalView[]): string[] {
+  /** Questions that would evaluate on their own: unanswered or stale, and not tried yet. */
+  function pendingKeys(current: LifecycleInputs, views: QuestionView[]): string[] {
     if (!canRun(current) || localState !== current.state) return []
     return entries
       .filter((entry, index) => {
         const view = views[index]
         return (
-          entry.kind.question &&
+          entry.kind.gatewayQuestion &&
           (!view.reading || view.stale) &&
           attempted.get(entry.key) !== entry.hash
         )
@@ -200,12 +202,12 @@ export function createLifecycle(clock: Clock = realClock): Lifecycle {
     if (!current || !dirty) return
     dirty = false
 
-    const views = entries.map((entry): SignalView => {
+    const views = entries.map((entry): QuestionView => {
       const reading = entry.kind.read(current.answers[entry.key])
       const status = statuses.get(entry.key)
       return {
         key: entry.key,
-        signal: entry.signal,
+        question: entry.question,
         title: entry.title,
         problem: entry.kind.problem,
         reading,
@@ -219,7 +221,7 @@ export function createLifecycle(clock: Clock = realClock): Lifecycle {
     // Waiting out the debounce counts as loading, so the spinner shows from the first keystroke.
     for (const view of views) if (pending.includes(view.key)) view.loading = true
     snapshot = {
-      signals: views,
+      questions: views,
       canRun: canRun(current),
       empty: current.state.trim() === '',
       loading: views.some((view) => view.loading),
@@ -251,8 +253,8 @@ export function createLifecycle(clock: Clock = realClock): Lifecycle {
     const {transport, model, state} = current
 
     for (const entry of entries) {
-      const question = entry.kind.question
-      if ((keys && !keys.includes(entry.key)) || !question) continue
+      const gatewayQuestion = entry.kind.gatewayQuestion
+      if ((keys && !keys.includes(entry.key)) || !gatewayQuestion) continue
 
       requests.get(entry.key)?.controller.abort()
       const controller = new AbortController()
@@ -267,7 +269,7 @@ export function createLifecycle(clock: Clock = realClock): Lifecycle {
             transport,
             model,
             state,
-            question,
+            question: gatewayQuestion,
             tags: [...current.tags, tag],
             signal: controller.signal,
           })

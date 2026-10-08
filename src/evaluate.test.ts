@@ -9,7 +9,7 @@ import {
   evaluateQuestion,
   gatewayTransport,
   JevError,
-  type JevQuestion,
+  type GatewayQuestion,
   type JevRequest,
   type JevTransport,
 } from './evaluate'
@@ -42,7 +42,7 @@ function ask(fixture: Fixture, transport: JevTransport, overrides = {}) {
     state: fixture.request.state,
     // The fixtures were recorded from these exact questions; JSON imports lose the literal types.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    question: fixture.request.questions.q as JevQuestion,
+    question: fixture.request.questions.q as GatewayQuestion,
     tags: ['feature:jev-fields'],
     retryDelays: [0, 0, 0],
     ...overrides,

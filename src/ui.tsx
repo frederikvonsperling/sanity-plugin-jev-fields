@@ -4,14 +4,14 @@ import {useTranslation} from 'sanity'
 import {keyframes, styled} from 'styled-components'
 
 import {JEV_NAMESPACE} from './i18n'
-import type {SignalError} from './lifecycle'
+import type {QuestionError} from './lifecycle'
 import {MUTED_COLOR} from './look'
-import type {SignalView} from './useSignals'
+import type {QuestionView} from './useQuestions'
 
 export type Translate = ReturnType<typeof useTranslation>['t']
 
 /** An evaluation error in the Studio's language; errors from outside the Gateway as they are. */
-export function errorText(t: Translate, error: SignalError): string {
+export function errorText(t: Translate, error: QuestionError): string {
   switch (error.kind) {
     case 'auth':
       return t('error.auth')
@@ -37,7 +37,7 @@ const pulse = keyframes`
   50% { opacity: 0.25; }
 `
 
-/** The chip's status dot: 6px, pulsing while the signal evaluates so the chip never shifts. */
+/** The chip's status dot: 6px, pulsing while the question evaluates so the chip never shifts. */
 const Dot = styled.span<{$color: string; $pulse: boolean}>`
   flex: none;
   width: 6px;
@@ -48,17 +48,17 @@ const Dot = styled.span<{$color: string; $pulse: boolean}>`
 `
 
 function Chip({
-  signal,
+  question,
   selected,
   onSelect,
 }: {
-  signal: SignalView
+  question: QuestionView
   selected: boolean
   onSelect: () => void
 }) {
   const {t} = useTranslation(JEV_NAMESPACE)
-  const {text, color} = signal.reading?.chip ?? {text: t('chip.empty'), color: undefined}
-  const failed = !!signal.error || !!signal.problem
+  const {text, color} = question.reading?.chip ?? {text: t('chip.empty'), color: undefined}
+  const failed = !!question.error || !!question.problem
   return (
     <Card
       as="button"
@@ -68,7 +68,7 @@ function Chip({
       paddingY={2}
       onClick={onSelect}
       aria-pressed={selected}
-      title={signal.stale ? t('chip.out-of-date') : undefined}
+      title={question.stale ? t('chip.out-of-date') : undefined}
       style={{
         display: 'inline-flex',
         flex: 'none',
@@ -83,17 +83,17 @@ function Chip({
         <Dot
           aria-hidden
           $color={failed ? '#f03e2f' : (color ?? MUTED_COLOR)}
-          $pulse={signal.loading}
+          $pulse={question.loading}
         />
         {/* Title and value share one line of text, so they share a baseline whatever the font. */}
         <Text size={1}>
-          {signal.title}
+          {question.title}
           <span
             style={{
               marginLeft: '0.6em',
               fontFamily: MONO,
               color: failed ? '#f03e2f' : color,
-              opacity: signal.stale ? 0.5 : 1,
+              opacity: question.stale ? 0.5 : 1,
             }}
           >
             {failed ? t('chip.error') : text}
@@ -105,7 +105,7 @@ function Chip({
 }
 
 interface StripProps {
-  signals: SignalView[]
+  questions: QuestionView[]
   selected: string | null
   onSelect: (key: string | null) => void
   setup: 'ready' | 'loading' | 'missing'
@@ -115,9 +115,9 @@ interface StripProps {
   onSetUp: () => void
 }
 
-/** The row of signal chips under an attached field. */
-export function SignalStrip({
-  signals,
+/** The row of question chips under an attached field. */
+export function QuestionStrip({
+  questions,
   selected,
   onSelect,
   setup,
@@ -128,7 +128,7 @@ export function SignalStrip({
 }: StripProps) {
   const {t} = useTranslation(JEV_NAMESPACE)
   return (
-    // Joins the input above: its bottom border becomes the divider between content and signals.
+    // Joins the input above: its bottom border becomes the divider between content and questions.
     <Card
       border
       padding={1}
@@ -141,12 +141,12 @@ export function SignalStrip({
     >
       <Flex align="center" gap={2}>
         <Flex flex={1} align="center" gap={1} wrap="wrap">
-          {signals.map((signal) => (
+          {questions.map((question) => (
             <Chip
-              key={signal.key}
-              signal={signal}
-              selected={selected === signal.key}
-              onSelect={() => onSelect(selected === signal.key ? null : signal.key)}
+              key={question.key}
+              question={question}
+              selected={selected === question.key}
+              onSelect={() => onSelect(selected === question.key ? null : question.key)}
             />
           ))}
         </Flex>
@@ -188,18 +188,18 @@ export function SignalStrip({
 }
 
 interface DetailProps {
-  signal: SignalView
+  question: QuestionView
   empty: boolean
   onRetry: () => void
   onUpdateKey?: () => void
 }
 
 /** Expanded view of the selected chip. */
-export function SignalDetail({signal, empty, onRetry, onUpdateKey}: DetailProps) {
+export function QuestionDetail({question, empty, onRetry, onUpdateKey}: DetailProps) {
   const {t} = useTranslation(JEV_NAMESPACE)
-  const {reading} = signal
-  const body = signal.problem ? (
-    <Text size={1}>{signal.problem}</Text>
+  const {reading} = question
+  const body = question.problem ? (
+    <Text size={1}>{question.problem}</Text>
   ) : reading ? (
     reading.body
   ) : (
@@ -222,30 +222,30 @@ export function SignalDetail({signal, empty, onRetry, onUpdateKey}: DetailProps)
       padding={4}
       radius={2}
       border
-      tone={signal.problem ? 'critical' : (reading?.tone ?? 'default')}
+      tone={question.problem ? 'critical' : (reading?.tone ?? 'default')}
     >
       <Stack gap={4}>
         <Flex align="center" gap={3}>
           <Box flex={1}>
             <Text size={1} weight="semibold">
-              {signal.title}
+              {question.title}
             </Text>
           </Box>
           {aside}
         </Flex>
         {body}
-        {signal.stale && !signal.loading && (
+        {question.stale && !question.loading && (
           <Text size={0} muted>
             {t('detail.out-of-date')}
           </Text>
         )}
-        {signal.error && (
+        {question.error && (
           <Card padding={3} radius={2} tone="critical" border>
             <Flex align="center" gap={3} wrap="wrap">
               <Box flex={1}>
-                <Text size={1}>{errorText(t, signal.error)}</Text>
+                <Text size={1}>{errorText(t, question.error)}</Text>
               </Box>
-              {signal.keyRejected && onUpdateKey ? (
+              {question.keyRejected && onUpdateKey ? (
                 <Button
                   text={t('detail.update-key')}
                   mode="ghost"

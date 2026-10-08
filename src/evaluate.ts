@@ -12,13 +12,13 @@ const DEFAULT_RETRY_DELAYS = [500, 1000, 2000]
 const MAX_RETRY_AFTER_MS = 10_000
 
 /** @public */
-export type JevQuestion =
+export type GatewayQuestion =
   | {type: 'boolean'; instructions: string; criteria: {true: string; false: string}}
   | {type: 'score'; instructions: string; criteria: string[]}
   | {type: 'choice'; instructions: string; criteria: Record<string, string>}
 
 /** @public */
-export type JevAnswer =
+export type GatewayAnswer =
   | {type: 'boolean'; probability: number}
   | {type: 'score'; score: number; probabilities: Record<string, number>; confidence?: number}
   | {type: 'choice'; choice: string; probabilities: Record<string, number>; confidence?: number}
@@ -31,7 +31,7 @@ export type JevAnswer =
 export interface JevRequest {
   model: string
   state: string | Record<string, string>
-  questions: {q: JevQuestion}
+  questions: {q: GatewayQuestion}
   providerOptions: {gateway: {tags: string[]}}
 }
 
@@ -80,7 +80,7 @@ interface EvaluateArgs {
   transport: JevTransport
   model: string
   state: string | Record<string, string>
-  question: JevQuestion
+  question: GatewayQuestion
   tags: string[]
   signal?: AbortSignal
   /** Waits before each retry of an overloaded or rate-limited request. */
@@ -88,7 +88,7 @@ interface EvaluateArgs {
 }
 
 interface EvaluateResponse {
-  answers?: {q?: JevAnswer}
+  answers?: {q?: GatewayAnswer}
   model?: string
   error?: {message?: string} | string
 }
@@ -105,7 +105,7 @@ export async function evaluateQuestion({
   tags,
   signal,
   retryDelays = DEFAULT_RETRY_DELAYS,
-}: EvaluateArgs): Promise<{answer: JevAnswer; model: string}> {
+}: EvaluateArgs): Promise<{answer: GatewayAnswer; model: string}> {
   const request: JevRequest = {
     model,
     state,
@@ -113,12 +113,14 @@ export async function evaluateQuestion({
     providerOptions: {gateway: {tags: normalizeTags(tags)}},
   }
 
-  const send = async (attempt: number): Promise<{answer: JevAnswer; model: string}> => {
+  const send = async (attempt: number): Promise<{answer: GatewayAnswer; model: string}> => {
     const response = await transport(request, {signal})
+
     const body: EvaluateResponse = await response.json().catch(() => ({}))
 
     if (response.ok) {
       const answer = body.answers?.q
+
       if (answer?.type !== question.type) {
         throw new JevError('unexpected', 'AI Gateway returned no answer.', response.status)
       }

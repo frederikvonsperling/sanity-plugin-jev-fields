@@ -18,11 +18,11 @@ import {
   type EvaluatedValue,
   type Kind,
   type RangeRule,
-  type SignalBase,
+  type QuestionBase,
 } from './kind'
 
 /** @public */
-export interface ScoreSignal extends SignalBase {
+export interface ScoreQuestion extends QuestionBase {
   type: 'score'
   /**
    * Two to ten criteria, lowest first. Text before a colon becomes the short label,
@@ -42,9 +42,9 @@ export interface ScoreSignal extends SignalBase {
 }
 
 /** A position on an ordered scale. @public */
-export const score = (signal: Omit<ScoreSignal, 'type'>): ScoreSignal => ({
+export const score = (question: Omit<ScoreQuestion, 'type'>): ScoreQuestion => ({
   type: 'score',
-  ...signal,
+  ...question,
 })
 
 /** @public */
@@ -95,24 +95,26 @@ export function segmentFills(score: number, count: number): number[] {
 }
 
 /** Colour and tone of a score, from the criterion it is nearest to. */
-function scoreLook(signal: ScoreSignal, value: number, max: number) {
-  if (signal.colors === 'neutral') return {color: NEUTRAL_COLOR, tone: 'primary' as Tone}
+function scoreLook(question: ScoreQuestion, value: number, max: number) {
+  if (question.colors === 'neutral') return {color: NEUTRAL_COLOR, tone: 'primary' as Tone}
   const fraction = max > 0 ? Math.round(value) / max : 0
-  const good = signal.colors === 'reverse' ? 1 - fraction : fraction
+  const good = question.colors === 'reverse' ? 1 - fraction : fraction
   return {color: trafficColor(good), tone: trafficTone(good)}
 }
 
-export function bindScore(signal: ScoreSignal): Kind {
-  const {criteria} = signal
+export function bindScore(question: ScoreQuestion): Kind {
+  const {criteria} = question
   const problem =
     !Array.isArray(criteria) || criteria.length < 2
-      ? 'A score signal needs at least two criteria.'
+      ? 'A score question needs at least two criteria.'
       : criteria.length > 10
-        ? 'A score signal allows at most ten criteria.'
-        : rangeRuleProblem(signal, 0, criteria.length - 1)
+        ? 'A score question allows at most ten criteria.'
+        : rangeRuleProblem(question, 0, criteria.length - 1)
   return {
     typeName: TYPE_NAMES.score,
-    question: problem ? undefined : {type: 'score', instructions: signal.instructions, criteria},
+    gatewayQuestion: problem
+      ? undefined
+      : {type: 'score', instructions: question.instructions, criteria},
     problem,
 
     toStored(answer) {
@@ -135,7 +137,7 @@ export function bindScore(signal: ScoreSignal): Kind {
       }
       const {score: value, max} = record
       const label = text(record.label)
-      const look = scoreLook(signal, value, max)
+      const look = scoreLook(question, value, max)
       return {
         value: {
           ...bookkeepingOf(record),
@@ -151,7 +153,7 @@ export function bindScore(signal: ScoreSignal): Kind {
           badge: capitalize(label ?? shortLabel(criteria?.[Math.round(value)])),
           tone: look.tone,
         },
-        body: <ScoreBody signal={signal} score={value} max={max} color={look.color} />,
+        body: <ScoreBody question={question} score={value} max={max} color={look.color} />,
       }
     },
 
@@ -164,31 +166,31 @@ export function bindScore(signal: ScoreSignal): Kind {
         const number = Number.isInteger(position) ? String(position) : position.toFixed(1)
         return label ? `${number} (${label})` : number
       }
-      const broken = rangeViolation(record.score, signal[level], describe)
+      const broken = rangeViolation(record.score, question[level], describe)
       return broken && `${title} is ${describe(record.score)}, ${broken}.`
     },
   }
 }
 
 function ScoreBody({
-  signal,
+  question,
   score,
   max,
   color,
 }: {
-  signal: ScoreSignal
+  question: ScoreQuestion
   score: number
   max: number
   color: string
 }) {
   const {t} = useTranslation(JEV_NAMESPACE)
   const nearest = Math.round(score)
-  const fills = segmentFills(score, signal.criteria.length)
-  const next = signal.criteria[nearest + 1]
+  const fills = segmentFills(score, question.criteria.length)
+  const next = question.criteria[nearest + 1]
   return (
     <Stack gap={4}>
       <Flex gap={1}>
-        {signal.criteria.map((criterion, index) => (
+        {question.criteria.map((criterion, index) => (
           // Criteria may repeat, so their position is the key.
           // oxlint-disable-next-line react/no-array-index-key
           <Stack key={index} gap={2} flex={1}>
@@ -211,7 +213,7 @@ function ScoreBody({
       </Flex>
       <Text size={1} muted>
         {t('score.summary', {
-          meaning: capitalize(meaningOf(signal.criteria[nearest])),
+          meaning: capitalize(meaningOf(question.criteria[nearest])),
           score: score.toFixed(1),
           max,
         })}

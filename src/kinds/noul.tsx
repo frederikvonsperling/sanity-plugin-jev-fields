@@ -17,11 +17,11 @@ import {
   type Kind,
   type Level,
   type RangeRule,
-  type SignalBase,
+  type QuestionBase,
 } from './kind'
 
 /** @public */
-export interface NoulSignal extends SignalBase {
+export interface NoulQuestion extends QuestionBase {
   type: 'noul'
   /** What a "yes" means. Shown when the probability is 50% or higher. */
   true: string
@@ -35,8 +35,11 @@ export interface NoulSignal extends SignalBase {
   require?: RangeRule
 }
 
-/** A yes/no signal: the chip shows the probability that the answer is yes. @public */
-export const noul = (signal: Omit<NoulSignal, 'type'>): NoulSignal => ({type: 'noul', ...signal})
+/** A yes/no question: the chip shows the probability that the answer is yes. @public */
+export const noul = (question: Omit<NoulQuestion, 'type'>): NoulQuestion => ({
+  type: 'noul',
+  ...question,
+})
 
 /** @public */
 export interface NoulValue extends EvaluatedValue {
@@ -58,21 +61,26 @@ export const noulSchemaTypes = [
   }),
 ]
 
-const LEVELS: Partial<Record<Tone, Level>> = {critical: 'low', caution: 'medium', positive: 'high'}
+const LEVELS: Partial<Record<Tone, Level>> = {
+  critical: 'low',
+  caution: 'medium',
+  positive: 'high',
+}
 
-export function bindNoul(signal: NoulSignal): Kind {
+export function bindNoul(question: NoulQuestion): Kind {
   const problem =
-    !signal.true?.trim() || !signal.false?.trim()
-      ? 'A noul signal needs both `true` and `false` text.'
-      : rangeRuleProblem(signal, 0, 1)
+    !question.true?.trim() || !question.false?.trim()
+      ? 'A noul question needs both `true` and `false` text.'
+      : rangeRuleProblem(question, 0, 1)
+
   return {
     typeName: TYPE_NAMES.noul,
     // Jev's API and the Gateway call a noul "boolean".
-    question: !problem
+    gatewayQuestion: !problem
       ? {
           type: 'boolean',
-          instructions: signal.instructions,
-          criteria: {true: signal.true, false: signal.false},
+          instructions: question.instructions,
+          criteria: {true: question.true, false: question.false},
         }
       : undefined,
     problem,
@@ -92,7 +100,7 @@ export function bindNoul(signal: NoulSignal): Kind {
         chip: {text: `${Math.round(probability * 100)}%`, color: trafficColor(probability)},
         tone: tone === 'positive' ? 'default' : tone,
         aside: {level: LEVELS[tone] ?? 'medium', tone},
-        body: <NoulBody signal={signal} probability={probability} />,
+        body: <NoulBody question={question} probability={probability} />,
       }
     },
 
@@ -100,13 +108,13 @@ export function bindNoul(signal: NoulSignal): Kind {
       const record = storedOf(stored, TYPE_NAMES.noul)
       if (!record || typeof record.probability !== 'number') return undefined
       const percent = (value: number) => `${Math.round(value * 100)}%`
-      const broken = rangeViolation(record.probability, signal[level], percent)
+      const broken = rangeViolation(record.probability, question[level], percent)
       return broken && `${title} is ${percent(record.probability)}, ${broken}.`
     },
   }
 }
 
-function NoulBody({signal, probability}: {signal: NoulSignal; probability: number}) {
+function NoulBody({question, probability}: {question: NoulQuestion; probability: number}) {
   const {t} = useTranslation(JEV_NAMESPACE)
   const percent = Math.round(probability * 100)
   return (
@@ -115,19 +123,19 @@ function NoulBody({signal, probability}: {signal: NoulSignal; probability: numbe
         <Text size={4} weight="medium">
           {percent}%
         </Text>
-        {signal.label && (
+        {question.label && (
           <Text size={1} muted>
-            {signal.label}
+            {question.label}
           </Text>
         )}
       </Flex>
       <Bar
         fraction={probability}
         color={trafficColor(probability)}
-        label={`${signal.title ?? t('noul.yes')}: ${percent}%`}
+        label={`${question.title ?? t('noul.yes')}: ${percent}%`}
       />
       <Text size={1} muted>
-        {probability >= 0.5 ? signal.true : signal.false}
+        {probability >= 0.5 ? question.true : question.false}
       </Text>
     </Stack>
   )

@@ -8,16 +8,16 @@ next to it for you to query, and can warn or block publishing.
 
 The questions are answered by [TypeSafe's Jev](https://typesafe.ai), a decision model that
 answers a question with a probability instead of writing text, through
-[Vercel AI Gateway](https://vercel.com/ai-gateway). Each question is a signal, shown as a chip
-under the field it judges; click it for the details. There are three kinds:
+[Vercel AI Gateway](https://vercel.com/ai-gateway). Each question shows as a chip under the field
+it judges; click it for the details. There are three kinds:
 
 - `noul`: a yes/no question, answered with the probability that the answer is yes
 - `score`: a position on an ordered scale you define
 - `choice`: one option from a named set, with a probability for each option
 
-Signals re-evaluate shortly after the field is edited. Opening a document never writes to it.
+Questions are re-evaluated shortly after the field is edited. Opening a document never writes to it.
 
-<img src="https://raw.githubusercontent.com/frederikvonsperling/sanity-plugin-jev-fields/main/docs/images/readable.png" width="612" alt="A Body field in Sanity Studio with three signal chips under it: Readable 90%, Evidence 1.5/3 and Tone Casual. The Readable details are open: a High badge, 90% likely to read easily, a nearly full green bar, and the hint &quot;Short sentences, plain words, clear structure&quot;.">
+<img src="https://raw.githubusercontent.com/frederikvonsperling/sanity-plugin-jev-fields/main/docs/images/readable.png" width="612" alt="A Body field in Sanity Studio with three question chips under it: Readable 90%, Evidence 1.5/3 and Tone Casual. The Readable details are open: a High badge, 90% likely to read easily, a nearly full green bar, and the hint &quot;Short sentences, plain words, clear structure&quot;.">
 
 ## Install
 
@@ -38,7 +38,7 @@ Requires Sanity Studio 6. Its peer dependencies, `react` and `react-dom` 19.2 or
 
 ## Usage
 
-Add the plugin, and wrap your schema types with `withJevAnswers` so every signal gets a field to
+Add the plugin, and wrap your schema types with `withJevAnswers` so every question gets a field to
 store its answer in:
 
 ```ts
@@ -53,7 +53,7 @@ export default defineConfig({
 })
 ```
 
-Then attach signals to any field with `options.jev`:
+Then attach questions to any field with `options.jev`:
 
 ```ts
 import {defineArrayMember, defineField} from 'sanity'
@@ -94,11 +94,11 @@ defineField({
 })
 ```
 
-A signal reads only the field it is attached to. Portable Text, slugs and nested objects are
+A question reads only the field it is attached to. Portable Text, slugs and nested objects are
 flattened to plain text. Each key (`readable`, `evidence`, `tone`) becomes the name of a field
 next to it that stores the answer; `withJevAnswers` adds those fields and stops with an error if a
 name is already taken. A `score` takes 2 to 10 criteria and a `choice` 2 to 255 options; see
-[Signal options](#signal-options) for the rest.
+[Question options](#question-options) for the rest.
 
 <img src="https://raw.githubusercontent.com/frederikvonsperling/sanity-plugin-jev-fields/main/docs/images/tone.png" width="612" alt="A Title field with a Tone Casual chip under it. The Tone details are open: bars for Formal 3%, Casual 97% and Playful 0%, the meaning &quot;Conversational and relaxed&quot;, and the note &quot;Out of date: the field changed since this was evaluated.&quot;">
 
@@ -106,16 +106,16 @@ When a field changes, its answers are marked out of date until they are evaluate
 
 ## Rules
 
-Give a signal a `warn` or `require` rule to act on its answer: `warn` shows a warning on the
+Give a question a `warn` or `require` rule to act on its answer: `warn` shows a warning on the
 attached field, `require` an error that blocks publishing.
 
 ```ts
 options: {
   jev: {
-    readable: noul({...signal, warn: {atLeast: 0.6}}), // probability, 0–1
-    evidence: score({...signal, require: {atLeast: 2}}), // position on the scale
-    risk: score({...signal, colors: 'reverse', warn: {atMost: 1}}), // lower is better
-    tone: choice({...signal, warn: {oneOf: ['formal', 'casual']}}),
+    readable: noul({...question, warn: {atLeast: 0.6}}), // probability, 0–1
+    evidence: score({...question, require: {atLeast: 2}}), // position on the scale
+    risk: score({...question, colors: 'reverse', warn: {atMost: 1}}), // lower is better
+    tone: choice({...question, warn: {oneOf: ['formal', 'casual']}}),
   },
 }
 ```
@@ -123,14 +123,14 @@ options: {
 `noul` and `score` rules take `atLeast`, `atMost` or both. `choice` rules take `oneOf`, the options
 the answer must be one of.
 
-Rules judge the stored answer, so they say nothing until a signal has been evaluated, and an
+Rules judge the stored answer, so they say nothing until a question has been evaluated, and an
 answer that is out of date is still judged as it is.
 
 ## What Jev is good at
 
 Jev judges meaning in text: tone, clarity, whether claims are backed up. It reads only text, so
 images and other media in a field are ignored. It is not built for counting or arithmetic: ask
-"Is this under 150 words?" in a validation rule instead. Test signals on content in your own
+"Is this under 150 words?" in a validation rule instead. Test questions on content in your own
 languages before relying on them. A field's text may be up to about 32k tokens; the Studio warns
 when a field gets close.
 
@@ -210,24 +210,24 @@ and config problems are meant for schema authors.
 
 Passed to `jev({...})`. All are optional.
 
-| Option       | Default                                    | Description                                                                                                                     |
-| ------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `transport`  |                                            | `(request, {signal}) => Promise<Response>`. Sends requests yourself, e.g. through your own server. See [API key](#api-key).     |
-| `apiKey`     |                                            | AI Gateway key. Bundled into the Studio's JavaScript; prefer the Jev tool or `transport`.                                       |
-| `endpoint`   | `https://ai-gateway.vercel.sh/v1/evaluate` | Where requests go. Ignored when `transport` is set.                                                                             |
-| `model`      | `typesafe-ai/jev`                          | Decision model to call.                                                                                                         |
-| `debounceMs` | `500`                                      | Delay after the last edit before re-evaluating, in milliseconds.                                                                |
-| `tool`       | `true`                                     | Adds the Jev tool for setting, testing and removing the stored key.                                                             |
-| `tags`       | `['feature:jev-fields']`                   | AI Gateway reporting tags, for cost attribution. Each request also gets a tag for its signal, e.g. `jev.noul:article.readable`. |
+| Option       | Default                                    | Description                                                                                                                       |
+| ------------ | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `transport`  |                                            | `(request, {signal}) => Promise<Response>`. Sends requests yourself, e.g. through your own server. See [API key](#api-key).       |
+| `apiKey`     |                                            | AI Gateway key. Bundled into the Studio's JavaScript; prefer the Jev tool or `transport`.                                         |
+| `endpoint`   | `https://ai-gateway.vercel.sh/v1/evaluate` | Where requests go. Ignored when `transport` is set.                                                                               |
+| `model`      | `typesafe-ai/jev`                          | Decision model to call.                                                                                                           |
+| `debounceMs` | `500`                                      | Delay after the last edit before re-evaluating, in milliseconds.                                                                  |
+| `tool`       | `true`                                     | Adds the Jev tool for setting, testing and removing the stored key.                                                               |
+| `tags`       | `['feature:jev-fields']`                   | AI Gateway reporting tags, for cost attribution. Each request also gets a tag for its question, e.g. `jev.noul:article.readable`. |
 
-### Signal options
+### Question options
 
-Every signal takes:
+Every question takes:
 
 | Option         | Description                                                                         |
 | -------------- | ----------------------------------------------------------------------------------- |
 | `instructions` | Required. The question Jev answers about the attached field.                        |
-| `title`        | Chip and detail heading. Defaults to the signal's key: `readable` → "Readable".     |
+| `title`        | Chip and detail heading. Defaults to the question's key: `readable` → "Readable".   |
 | `warn`         | Shows a warning on the field when the answer breaks this rule. See [Rules](#rules). |
 | `require`      | Blocks publishing when the answer breaks this rule.                                 |
 

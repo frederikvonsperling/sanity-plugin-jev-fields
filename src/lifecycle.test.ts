@@ -5,7 +5,7 @@ import noulFixture from './__fixtures__/gateway/noul.json'
 import type {JevRequest, JevTransport} from './evaluate'
 import type {StoredValue} from './kinds'
 import {createLifecycle, type Clock, type LifecycleInputs} from './lifecycle'
-import {noul, type JevSignals} from './signals'
+import {noul, type JevQuestions} from './questions'
 
 const readable = noul({
   instructions: 'Is this text easy to read for a general audience?',
@@ -48,7 +48,7 @@ function heldTransport() {
 }
 
 /** One attached field, with its answer fields kept in memory like the Studio's form. */
-function field(signals: JevSignals = {readable}, overrides: Partial<LifecycleInputs> = {}) {
+function field(questions: JevQuestions = {readable}, overrides: Partial<LifecycleInputs> = {}) {
   const clock = fakeClock()
   const {transport, calls} = heldTransport()
   const answers: Record<string, unknown> = {}
@@ -56,7 +56,7 @@ function field(signals: JevSignals = {readable}, overrides: Partial<LifecycleInp
   const lifecycle = createLifecycle(clock)
 
   let inputs: LifecycleInputs = {
-    signals,
+    questions,
     state: '',
     answers: {},
     transport,
@@ -92,7 +92,7 @@ function field(signals: JevSignals = {readable}, overrides: Partial<LifecycleInp
       lifecycle.localEdit()
       push({state})
     },
-    view: (key = 'readable') => lifecycle.getSnapshot().signals.find((s) => s.key === key)!,
+    view: (key = 'readable') => lifecycle.getSnapshot().questions.find((s) => s.key === key)!,
   }
 }
 
@@ -254,7 +254,7 @@ describe('evaluation lifecycle', () => {
     expect(f.lifecycle.getSnapshot()).toMatchObject({empty: true, canRun: false})
   })
 
-  it("reports a signal's config problem instead of asking it", () => {
+  it("reports a question's config problem instead of asking it", () => {
     const f = field({broken: noul({instructions: '', true: 'y', false: 'n'})})
     f.type('A')
     f.clock.tick(1000)

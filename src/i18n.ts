@@ -11,7 +11,7 @@ export const JEV_NAMESPACE = 'jev' as const
 export const resources = {
   'strip.label': 'Jev',
   'strip.set-up': 'Set up Jev',
-  'strip.evaluate-all': 'Evaluate all signals now',
+  'strip.evaluate-all': 'Evaluate all questions now',
   'chip.empty': '–',
   'chip.error': 'Error',
   'chip.out-of-date': 'Out of date',
@@ -48,7 +48,7 @@ export const resources = {
   'key-dialog.save-failed': 'Could not save the key: {{error}}',
 
   'tool.title': 'Jev',
-  'tool.intro': 'Jev signals are answered by TypeSafe’s Jev model through Vercel AI Gateway.',
+  'tool.intro': 'Jev questions are answered by TypeSafe’s Jev model through Vercel AI Gateway.',
   'tool.key.heading': 'AI Gateway API key',
   'tool.key.status.config': 'From plugin config',
   'tool.key.status.checking': 'Checking',
@@ -61,11 +61,12 @@ export const resources = {
   'tool.key.ends-with': 'Key ending in <Code>{{last4}}</Code>',
   'tool.key.changed': 'Last changed {{date}}',
   'tool.key.checking': 'Checking for a stored key…',
-  'tool.key.none': 'No key is stored, so Jev signals cannot evaluate yet.',
+  'tool.key.none': 'No key is stored, so Jev questions can’t be evaluated yet.',
   'tool.key.set': 'Set key',
   'tool.key.change': 'Change key',
   'tool.key.remove': 'Remove key',
-  'tool.key.remove-confirm': 'Remove the key? Jev signals stop evaluating until a new one is set.',
+  'tool.key.remove-confirm':
+    'Remove the key? Jev questions stop being evaluated until a new one is set.',
   'tool.key.remove-cancel': 'Cancel',
   'tool.key.remove-confirm-button': 'Remove',
   'tool.key.remove-failed': 'Could not remove the key: {{error}}',

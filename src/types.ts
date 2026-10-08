@@ -21,7 +21,7 @@ export interface JevPluginConfig {
   tool?: boolean
   /**
    * AI Gateway reporting tags, for cost attribution. Defaults to `['feature:jev-fields']`.
-   * Each request also gets a per-signal tag, e.g. `jev.noul:article.readable`.
+   * Each request also gets a per-question tag, e.g. `jev.noul:article.readable`.
    */
   tags?: string[]
 }
