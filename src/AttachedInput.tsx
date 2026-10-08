@@ -1,8 +1,9 @@
 import {Card, Stack, Text} from '@sanity/ui'
 import {useState} from 'react'
-import type {FormPatch, InputProps, PatchEvent} from 'sanity'
+import {useTranslation, type FormPatch, type InputProps, type PatchEvent} from 'sanity'
 
 import {estimateTokens, nearTokenLimit, STATE_TOKEN_LIMIT, toText} from './content'
+import {JEV_NAMESPACE} from './i18n'
 import {JevKeyDialog} from './secrets'
 import type {JevSignals} from './signals'
 import {SignalDetail, SignalStrip} from './ui'
@@ -12,6 +13,7 @@ type OnChange = (patch: FormPatch | FormPatch[] | PatchEvent) => void
 
 /** Renders a field with `options.jev` as usual, with its signal strip and details below. */
 export function AttachedInput({signals, ...props}: InputProps & {signals: JevSignals}) {
+  const {t} = useTranslation(JEV_NAMESPACE)
   const parentOnChange: OnChange = props.onChange
   const {value} = props
   const state = toText(value)
@@ -51,8 +53,10 @@ export function AttachedInput({signals, ...props}: InputProps & {signals: JevSig
       {nearTokenLimit(state) && (
         <Card padding={3} radius={2} tone="caution" border>
           <Text size={1}>
-            This field is about {Math.round(estimateTokens(state) / 1000)}k tokens long. Jev reads
-            at most {STATE_TOKEN_LIMIT / 1000}k per question, so longer text may be refused.
+            {t('field.too-long', {
+              tokens: Math.round(estimateTokens(state) / 1000),
+              limit: STATE_TOKEN_LIMIT / 1000,
+            })}
           </Text>
         </Card>
       )}

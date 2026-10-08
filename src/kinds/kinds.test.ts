@@ -150,7 +150,7 @@ describe('reading stored answers', () => {
     const reading = kindOf(readable).read({_type: 'jev.noul', probability: 0.2})
     expect(reading?.chip.text).toBe('20%')
     expect(reading?.tone).toBe('critical')
-    expect(reading?.aside).toEqual({badge: 'Low', tone: 'critical'})
+    expect(reading?.aside).toEqual({level: 'low', tone: 'critical'})
     // High probabilities are good news: the card stays neutral.
     expect(kindOf(readable).read({_type: 'jev.noul', probability: 0.9})?.tone).toBe('default')
   })

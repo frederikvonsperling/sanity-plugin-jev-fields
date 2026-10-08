@@ -1,9 +1,34 @@
 import {RefreshIcon} from '@sanity/icons/Refresh'
 import {Badge, Box, Button, Card, Flex, Spinner, Stack, Text} from '@sanity/ui'
+import {useTranslation} from 'sanity'
 import {keyframes, styled} from 'styled-components'
 
+import {JEV_NAMESPACE} from './i18n'
+import type {SignalError} from './lifecycle'
 import {MUTED_COLOR} from './look'
 import type {SignalView} from './useSignals'
+
+export type Translate = ReturnType<typeof useTranslation>['t']
+
+/** An evaluation error in the Studio's language; errors from outside the Gateway as they are. */
+export function errorText(t: Translate, error: SignalError): string {
+  switch (error.kind) {
+    case 'auth':
+      return t('error.auth')
+    case 'invalid':
+      return t('error.invalid', {detail: error.detail ?? error.status})
+    case 'busy':
+      return t('error.busy')
+    case 'failed':
+      return error.detail
+        ? t('error.failed-with-detail', {status: error.status, detail: error.detail})
+        : t('error.failed', {status: error.status})
+    case 'unexpected':
+      return t('error.unexpected')
+    default:
+      return error.message
+  }
+}
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 
@@ -31,7 +56,8 @@ function Chip({
   selected: boolean
   onSelect: () => void
 }) {
-  const {text, color} = signal.reading?.chip ?? {text: '–', color: undefined}
+  const {t} = useTranslation(JEV_NAMESPACE)
+  const {text, color} = signal.reading?.chip ?? {text: t('chip.empty'), color: undefined}
   const failed = !!signal.error || !!signal.problem
   return (
     <Card
@@ -42,7 +68,7 @@ function Chip({
       paddingY={2}
       onClick={onSelect}
       aria-pressed={selected}
-      title={signal.stale ? 'Out of date' : undefined}
+      title={signal.stale ? t('chip.out-of-date') : undefined}
       style={{
         display: 'inline-flex',
         flex: 'none',
@@ -70,7 +96,7 @@ function Chip({
               opacity: signal.stale ? 0.5 : 1,
             }}
           >
-            {failed ? 'Error' : text}
+            {failed ? t('chip.error') : text}
           </span>
         </Text>
       </Flex>
@@ -100,6 +126,7 @@ export function SignalStrip({
   onRunAll,
   onSetUp,
 }: StripProps) {
+  const {t} = useTranslation(JEV_NAMESPACE)
   return (
     // Joins the input above: its bottom border becomes the divider between content and signals.
     <Card
@@ -125,7 +152,7 @@ export function SignalStrip({
         </Flex>
         {setup === 'missing' ? (
           <Button
-            text="Set up Jev"
+            text={t('strip.set-up')}
             mode="ghost"
             tone="primary"
             fontSize={1}
@@ -135,7 +162,7 @@ export function SignalStrip({
         ) : (
           <Flex align="center" gap={1}>
             <Text size={0} muted>
-              Jev
+              {t('strip.label')}
             </Text>
             {loading ? (
               <Box padding={2}>
@@ -147,8 +174,8 @@ export function SignalStrip({
                 mode="bleed"
                 fontSize={1}
                 padding={2}
-                title="Evaluate all signals now"
-                aria-label="Evaluate all signals now"
+                title={t('strip.evaluate-all')}
+                aria-label={t('strip.evaluate-all')}
                 disabled={!canRun}
                 onClick={onRunAll}
               />
@@ -169,6 +196,7 @@ interface DetailProps {
 
 /** Expanded view of the selected chip. */
 export function SignalDetail({signal, empty, onRetry, onUpdateKey}: DetailProps) {
+  const {t} = useTranslation(JEV_NAMESPACE)
   const {reading} = signal
   const body = signal.problem ? (
     <Text size={1}>{signal.problem}</Text>
@@ -176,11 +204,13 @@ export function SignalDetail({signal, empty, onRetry, onUpdateKey}: DetailProps)
     reading.body
   ) : (
     <Text size={1} muted>
-      {empty ? 'Add content to this field to evaluate it.' : 'Not evaluated yet.'}
+      {empty ? t('detail.empty-field') : t('detail.not-evaluated')}
     </Text>
   )
   const aside = !reading?.aside ? null : 'badge' in reading.aside ? (
     <Badge tone={reading.aside.tone}>{reading.aside.badge}</Badge>
+  ) : 'level' in reading.aside ? (
+    <Badge tone={reading.aside.tone}>{t(`noul.level.${reading.aside.level}`)}</Badge>
   ) : (
     <Text size={1} muted>
       {reading.aside.note}
@@ -206,19 +236,24 @@ export function SignalDetail({signal, empty, onRetry, onUpdateKey}: DetailProps)
         {body}
         {signal.stale && !signal.loading && (
           <Text size={0} muted>
-            Out of date: the field changed since this was evaluated.
+            {t('detail.out-of-date')}
           </Text>
         )}
         {signal.error && (
           <Card padding={3} radius={2} tone="critical" border>
             <Flex align="center" gap={3} wrap="wrap">
               <Box flex={1}>
-                <Text size={1}>{signal.error}</Text>
+                <Text size={1}>{errorText(t, signal.error)}</Text>
               </Box>
               {signal.keyRejected && onUpdateKey ? (
-                <Button text="Update API key" mode="ghost" fontSize={1} onClick={onUpdateKey} />
+                <Button
+                  text={t('detail.update-key')}
+                  mode="ghost"
+                  fontSize={1}
+                  onClick={onUpdateKey}
+                />
               ) : (
-                <Button text="Try again" mode="ghost" fontSize={1} onClick={onRetry} />
+                <Button text={t('detail.try-again')} mode="ghost" fontSize={1} onClick={onRetry} />
               )}
             </Flex>
           </Card>

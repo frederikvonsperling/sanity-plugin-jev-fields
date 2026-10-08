@@ -211,7 +211,7 @@ describe('evaluation lifecycle', () => {
     f.type('A')
     f.clock.tick(500)
     f.calls[0].answer(respond(invalidKey))
-    await vi.waitFor(() => expect(f.view().error).toMatch(/rejected the API key/))
+    await vi.waitFor(() => expect(f.view().error?.message).toMatch(/rejected the API key/))
     expect(f.view()).toMatchObject({keyRejected: true, loading: false})
 
     f.type('AB')
@@ -230,7 +230,7 @@ describe('evaluation lifecycle', () => {
     f.type('A')
     f.clock.tick(500)
     f.calls[0].answer(respond(noulFixture))
-    await vi.waitFor(() => expect(f.view().error).toMatch(/no "readable" field/))
+    await vi.waitFor(() => expect(f.view().error?.message).toMatch(/no "readable" field/))
   })
 
   it.each([

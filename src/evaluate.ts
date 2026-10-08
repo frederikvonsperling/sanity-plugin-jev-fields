@@ -42,18 +42,23 @@ export interface JevRequest {
  */
 export type JevTransport = (request: JevRequest, init: {signal?: AbortSignal}) => Promise<Response>
 
-type JevErrorKind = 'auth' | 'invalid' | 'busy' | 'failed' | 'unexpected'
+export type JevErrorKind = 'auth' | 'invalid' | 'busy' | 'failed' | 'unexpected'
 
-/** An evaluation that failed, with a message an editor can act on. */
+/**
+ * An evaluation that failed. `message` is in English; the Studio shows a translated text built
+ * from `kind`, `status` and `detail` (the Gateway's own explanation).
+ */
 export class JevError extends Error {
   kind: JevErrorKind
   status?: number
+  detail?: string
 
-  constructor(kind: JevErrorKind, message: string, status?: number) {
+  constructor(kind: JevErrorKind, message: string, status?: number, detail?: string) {
     super(message)
     this.name = 'JevError'
     this.kind = kind
     this.status = status
+    this.detail = detail
   }
 }
 
@@ -134,18 +139,24 @@ function toError(status: number, message: string | undefined): JevError {
   if (status === 401 || status === 403) {
     return new JevError(
       'auth',
-      'AI Gateway rejected the API key. Check the key in Jev settings.',
+      'AI Gateway rejected the API key. Check the key in the Jev tool.',
       status,
+      message,
     )
   }
   if (status === 400 || status === 422) {
-    return new JevError('invalid', `AI Gateway rejected the question: ${message ?? status}`, status)
+    return new JevError(
+      'invalid',
+      `AI Gateway rejected the question: ${message ?? status}`,
+      status,
+      message,
+    )
   }
   if (RETRY_STATUSES.has(status)) {
-    return new JevError('busy', 'AI Gateway is busy. Try again in a moment.', status)
+    return new JevError('busy', 'AI Gateway is busy. Try again in a moment.', status, message)
   }
-  const detail = message ? `: ${message}` : ''
-  return new JevError('failed', `AI Gateway responded with ${status}${detail}`, status)
+  const suffix = message ? `: ${message}` : ''
+  return new JevError('failed', `AI Gateway responded with ${status}${suffix}`, status, message)
 }
 
 function errorMessage(body: EvaluateResponse): string | undefined {

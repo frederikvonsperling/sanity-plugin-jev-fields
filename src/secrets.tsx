@@ -1,7 +1,8 @@
 import {Box, Button, Card, Dialog, Flex, Stack, Text, TextInput} from '@sanity/ui'
 import {useEffect, useId, useState} from 'react'
-import {useClient, useDocumentPreviewStore} from 'sanity'
+import {useClient, useDocumentPreviewStore, useTranslation} from 'sanity'
 
+import {JEV_NAMESPACE} from './i18n'
 import type {JevPluginConfig} from './types'
 
 // Same document shape as @sanity/studio-secrets, so keys stored by either keep working.
@@ -68,6 +69,7 @@ export function useKeySource(config: JevPluginConfig): KeySource {
 
 /** Dialog for entering or replacing the stored key. Closes once the key is saved. */
 export function JevKeyDialog({onClose}: {onClose: () => void}) {
+  const {t} = useTranslation(JEV_NAMESPACE)
   const saveKey = useSaveKey()
   const inputId = useId()
   const [value, setValue] = useState('')
@@ -87,7 +89,7 @@ export function JevKeyDialog({onClose}: {onClose: () => void}) {
   }
 
   return (
-    <Dialog id="jev-key-dialog" header="AI Gateway API key" onClose={onClose} width={1}>
+    <Dialog id="jev-key-dialog" header={t('key-dialog.title')} onClose={onClose} width={1}>
       <Box
         as="form"
         padding={4}
@@ -99,12 +101,10 @@ export function JevKeyDialog({onClose}: {onClose: () => void}) {
         <Stack gap={4}>
           <Stack gap={3}>
             <Text as="label" htmlFor={inputId} size={1} weight="semibold">
-              API key
+              {t('key-dialog.label')}
             </Text>
             <Text size={1} muted>
-              Create one in the Vercel dashboard under AI Gateway → API Keys, ideally with a spend
-              limit. It is stored in this dataset, so Studio users and API tokens that can read the
-              dataset can see it.
+              {t('key-dialog.description')}
             </Text>
             <TextInput
               id={inputId}
@@ -118,15 +118,20 @@ export function JevKeyDialog({onClose}: {onClose: () => void}) {
 
           {error && (
             <Card padding={3} radius={2} tone="critical">
-              <Text size={1}>Could not save the key: {error}</Text>
+              <Text size={1}>{t('key-dialog.save-failed', {error})}</Text>
             </Card>
           )}
 
           <Flex gap={2} justify="flex-end">
-            <Button text="Cancel" mode="bleed" disabled={saving} onClick={onClose} />
+            <Button
+              text={t('key-dialog.cancel')}
+              mode="bleed"
+              disabled={saving}
+              onClick={onClose}
+            />
             <Button
               type="submit"
-              text={saving ? 'Saving…' : 'Save'}
+              text={saving ? t('key-dialog.saving') : t('key-dialog.save')}
               tone="primary"
               disabled={saving || value.trim() === ''}
             />

@@ -1,11 +1,17 @@
 import {Badge, Box, Button, Card, Container, Flex, Heading, Stack, Text} from '@sanity/ui'
-import {useState} from 'react'
+import {useState, type ReactNode} from 'react'
+import {Translate, useTranslation} from 'sanity'
 
-import {DEFAULT_MODEL, DEFAULT_TAGS, evaluateQuestion, gatewayTransport} from './evaluate'
+import {DEFAULT_MODEL, DEFAULT_TAGS, evaluateQuestion, gatewayTransport, JevError} from './evaluate'
+import {JEV_NAMESPACE} from './i18n'
 import {kindOf} from './kinds'
+import type {SignalError} from './lifecycle'
 import {JevKeyDialog, useSaveKey, useStoredKey} from './secrets'
 import {noul} from './signals'
 import type {JevPluginConfig} from './types'
+import {errorText} from './ui'
+
+const Code = ({children}: {children?: ReactNode}) => <code>{children}</code>
 
 // One tiny yes/no question: costs a fraction of a cent.
 const CONNECTION_TEST = kindOf(
@@ -20,10 +26,16 @@ type TestState =
   | {state: 'idle'}
   | {state: 'running'}
   | {state: 'passed'; model: string}
-  | {state: 'failed'; message: string}
+  | {state: 'failed'; error: SignalError}
+
+const asSignalError = (error: unknown): SignalError =>
+  error instanceof JevError
+    ? {message: error.message, kind: error.kind, status: error.status, detail: error.detail}
+    : {message: error instanceof Error ? error.message : String(error)}
 
 /** Studio tool for setting, checking and removing the stored AI Gateway key. */
 export function JevTool({config}: {config: JevPluginConfig}) {
+  const {t} = useTranslation(JEV_NAMESPACE)
   const stored = useStoredKey()
   const saveKey = useSaveKey()
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -49,7 +61,7 @@ export function JevTool({config}: {config: JevPluginConfig}) {
       })
       setTest({state: 'passed', model: result.model})
     } catch (error) {
-      setTest({state: 'failed', message: error instanceof Error ? error.message : String(error)})
+      setTest({state: 'failed', error: asSignalError(error)})
     }
   }
 
@@ -57,9 +69,9 @@ export function JevTool({config}: {config: JevPluginConfig}) {
     <Container width={1} padding={4}>
       <Stack gap={5}>
         <Stack gap={3}>
-          <Heading size={2}>Jev</Heading>
+          <Heading size={2}>{t('tool.title')}</Heading>
           <Text muted size={1}>
-            Jev fields are answered by TypeSafe&rsquo;s Jev model through Vercel AI Gateway.
+            {t('tool.intro')}
           </Text>
         </Stack>
 
@@ -68,7 +80,7 @@ export function JevTool({config}: {config: JevPluginConfig}) {
             <Flex align="center" gap={3}>
               <Box flex={1}>
                 <Heading size={0} as="h2">
-                  AI Gateway API key
+                  {t('tool.key.heading')}
                 </Heading>
               </Box>
               <KeyStatus fromConfig={fromConfig} loading={stored.loading} stored={stored.apiKey} />
@@ -76,47 +88,48 @@ export function JevTool({config}: {config: JevPluginConfig}) {
 
             {fromConfig ? (
               <Text size={1} muted>
-                {config.transport
-                  ? 'Requests go through the transport in the plugin config, so no key is needed here.'
-                  : 'The key comes from apiKey in the plugin config. A key stored here is ignored.'}
+                {config.transport ? t('tool.key.from-transport') : t('tool.key.from-config')}
               </Text>
             ) : stored.apiKey ? (
               <Stack gap={3}>
                 <Text size={1}>
-                  Key ending in <code>{stored.apiKey.slice(-4)}</code>
+                  <Translate
+                    t={t}
+                    i18nKey="tool.key.ends-with"
+                    values={{last4: stored.apiKey.slice(-4)}}
+                    components={{Code}}
+                  />
                 </Text>
                 {stored.updatedAt && (
                   <Text size={1} muted>
-                    Last changed {new Date(stored.updatedAt).toLocaleString()}
+                    {t('tool.key.changed', {date: new Date(stored.updatedAt).toLocaleString()})}
                   </Text>
                 )}
               </Stack>
             ) : (
               <Text size={1} muted>
-                {stored.loading
-                  ? 'Checking for a stored key…'
-                  : 'No key is stored, so Jev fields cannot evaluate yet.'}
+                {stored.loading ? t('tool.key.checking') : t('tool.key.none')}
               </Text>
             )}
 
             <Flex gap={2} wrap="wrap">
               {!fromConfig && (
                 <Button
-                  text={stored.apiKey ? 'Change key' : 'Set key'}
+                  text={stored.apiKey ? t('tool.key.change') : t('tool.key.set')}
                   tone="primary"
                   disabled={stored.loading}
                   onClick={() => setSettingsOpen(true)}
                 />
               )}
               <Button
-                text={test.state === 'running' ? 'Testing…' : 'Test connection'}
+                text={test.state === 'running' ? t('tool.test.running') : t('tool.test.run')}
                 mode="ghost"
                 disabled={!transport || test.state === 'running'}
                 onClick={testConnection}
               />
               {!fromConfig && stored.apiKey && !confirmRemove && (
                 <Button
-                  text="Remove key"
+                  text={t('tool.key.remove')}
                   mode="bleed"
                   tone="critical"
                   onClick={() => setConfirmRemove(true)}
@@ -128,13 +141,15 @@ export function JevTool({config}: {config: JevPluginConfig}) {
               <Card padding={3} radius={2} tone="critical">
                 <Flex align="center" gap={2} wrap="wrap">
                   <Box flex={1}>
-                    <Text size={1}>
-                      Remove the key? Jev fields stop evaluating until a new one is set.
-                    </Text>
+                    <Text size={1}>{t('tool.key.remove-confirm')}</Text>
                   </Box>
-                  <Button text="Cancel" mode="bleed" onClick={() => setConfirmRemove(false)} />
                   <Button
-                    text="Remove"
+                    text={t('tool.key.remove-cancel')}
+                    mode="bleed"
+                    onClick={() => setConfirmRemove(false)}
+                  />
+                  <Button
+                    text={t('tool.key.remove-confirm-button')}
                     tone="critical"
                     onClick={async () => {
                       setConfirmRemove(false)
@@ -143,7 +158,10 @@ export function JevTool({config}: {config: JevPluginConfig}) {
                         setTest({state: 'idle'})
                       } catch (error) {
                         const message = error instanceof Error ? error.message : String(error)
-                        setTest({state: 'failed', message: `Could not remove the key: ${message}`})
+                        setTest({
+                          state: 'failed',
+                          error: {message: t('tool.key.remove-failed', {error: message})},
+                        })
                       }
                     }}
                   />
@@ -153,12 +171,12 @@ export function JevTool({config}: {config: JevPluginConfig}) {
 
             {test.state === 'passed' && (
               <Card padding={3} radius={2} tone="positive">
-                <Text size={1}>Connection works. {test.model} answered.</Text>
+                <Text size={1}>{t('tool.test.passed', {model: test.model})}</Text>
               </Card>
             )}
             {test.state === 'failed' && (
               <Card padding={3} radius={2} tone="critical">
-                <Text size={1}>{test.message}</Text>
+                <Text size={1}>{errorText(t, test.error)}</Text>
               </Card>
             )}
           </Stack>
@@ -166,15 +184,10 @@ export function JevTool({config}: {config: JevPluginConfig}) {
 
         <Stack gap={3}>
           <Heading size={0} as="h2">
-            Who can see the key
+            {t('tool.visibility.heading')}
           </Heading>
           <Text size={1} muted>
-            The key is stored in this dataset in the document <code>secrets.jev</code>. It is not
-            public, but anyone who can read the dataset can see it: every Studio user, and every API
-            token with read access, such as a frontend&rsquo;s read or preview token. It is also
-            included in dataset exports and backups. Use a dedicated key with a spend limit. If
-            editors and tokens must never see the key, set a <code>transport</code> that sends
-            requests through your own server.
+            <Translate t={t} i18nKey="tool.visibility.body" components={{Code}} />
           </Text>
         </Stack>
       </Stack>
@@ -200,7 +213,12 @@ function KeyStatus({
   loading: boolean
   stored: string | undefined
 }) {
-  if (fromConfig) return <Badge tone="primary">From plugin config</Badge>
-  if (loading) return <Badge>Checking</Badge>
-  return stored ? <Badge tone="positive">Set</Badge> : <Badge tone="caution">Not set</Badge>
+  const {t} = useTranslation(JEV_NAMESPACE)
+  if (fromConfig) return <Badge tone="primary">{t('tool.key.status.config')}</Badge>
+  if (loading) return <Badge>{t('tool.key.status.checking')}</Badge>
+  return stored ? (
+    <Badge tone="positive">{t('tool.key.status.set')}</Badge>
+  ) : (
+    <Badge tone="caution">{t('tool.key.status.not-set')}</Badge>
+  )
 }
