@@ -48,7 +48,7 @@
     "lint": "oxlint",
     "prepublishOnly": "pnpm run build",
     "record-fixtures": "node scripts/record-fixtures.ts",
-    "release": "pnpm build && changeset publish",
+    "release": "pnpm build && node scripts/publish.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "version-packages": "changeset version",

@@ -1,0 +1,37 @@
+name: Release
+
+# On every push to main, changesets either opens/updates a "Version packages" PR (when there are
+# changesets) or, once that PR is merged, publishes the new version to npm with trusted publishing.
+on:
+  push:
+    branches: [main]
+
+concurrency: release-${{ github.ref }}
+
+permissions:
+  contents: write # push the version commit and tags, create GitHub releases
+  pull-requests: write # open the "Version packages" PR
+  id-token: write # npm trusted publishing (OIDC) and provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      # No dependency cache in release builds, as npm recommends for trusted publishing.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or newer.
+      - run: npm install --global npm@^11.5.1
+      - run: pnpm install --frozen-lockfile
+      # v2 is the action for Changesets 3. It learns what was released from the report
+      # `changeset git-tag` writes to $CHANGESETS_OUTPUT, then pushes tags and creates releases.
+      - uses: changesets/action@v2
+        with:
+          version-script: pnpm version-packages
+          publish-script: pnpm release
+          pr-title: Version packages
+          commit-message: Version packages
