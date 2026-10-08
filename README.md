@@ -86,11 +86,12 @@ name is already taken.
 Open the **Jev** tool in the Studio, click **Set key** and paste an AI Gateway API key. The tool
 shows whether a key is set, when it last changed, and can test the connection.
 
-The key is stored in the document `secrets.jev` in your dataset. It is not public, but every
-Studio user who can read the dataset can see it, and it is included in dataset exports. Use a
-dedicated key with a spend limit.
+The key is stored in the document `secrets.jev` in your dataset. Unauthenticated queries can't
+read it, but anyone who can read the dataset can: every Studio user, and every API token with read
+access, such as a frontend's read or preview token. It is also included in dataset exports and
+backups. Use a dedicated key with a spend limit.
 
-If editors must never see the key, send requests through your own server instead:
+If editors and tokens must never see the key, send requests through your own server instead:
 
 ```ts
 jev({

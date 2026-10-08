@@ -103,8 +103,8 @@ export function JevKeyDialog({onClose}: {onClose: () => void}) {
             </Text>
             <Text size={1} muted>
               Create one in the Vercel dashboard under AI Gateway → API Keys, ideally with a spend
-              limit. It is stored in this dataset, so Studio users who can read the dataset can see
-              it.
+              limit. It is stored in this dataset, so Studio users and API tokens that can read the
+              dataset can see it.
             </Text>
             <TextInput
               id={inputId}
