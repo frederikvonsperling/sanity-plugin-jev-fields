@@ -1,7 +1,6 @@
 # sanity-plugin-jev-fields
 
-> Work in progress: not yet published to npm. Expect `0.x` releases to change until the stored
-> value shapes are frozen at `1.0.0`.
+> Beta: expect `0.x` releases to change until the stored value shapes are frozen at `1.0.0`.
 
 Jev signals for Sanity Studio: questions about a field's content, answered by
 [TypeSafe's Jev](https://typesafe.ai) decision model through
@@ -13,6 +12,8 @@ the field it judges; click it for the details.
 - `choice`: one option from a named set, with a probability for each option
 
 Signals re-evaluate shortly after the field is edited. Opening a document never writes to it.
+
+![A Body field in Sanity Studio with three signal chips under it: Readable 90%, Evidence 1.5 of 3 and Tone Casual. The Evidence details are open: a four-step bar from None to Cited, filled to Anecdotal, and the hint "To move up: add a source or figure."](https://raw.githubusercontent.com/frederikvonsperling/sanity-plugin-jev-fields/main/docs/images/signals.png)
 
 ## Install
 
@@ -173,6 +174,10 @@ pnpm build
 `pnpm record-fixtures` re-records the real Gateway responses in `src/__fixtures__` (needs
 `AI_GATEWAY_API_KEY` in `.env`). [CONTEXT.md](./CONTEXT.md) defines the vocabulary and
 [docs/adr](./docs/adr) records the main decisions.
+
+To release a change, add a changeset to its PR with `pnpm changeset`. The release workflow keeps a
+"Version packages" PR up to date; merging it publishes to npm with trusted publishing and
+provenance, and creates the GitHub release.
 
 ## License
 
