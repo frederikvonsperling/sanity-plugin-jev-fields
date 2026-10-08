@@ -4,6 +4,7 @@ import {definePlugin} from 'sanity'
 import {signalsOf} from './answers'
 import {AttachedInput} from './AttachedInput'
 import {JevFormProvider} from './context'
+import {jevLocaleBundle} from './i18n'
 import {JevTool} from './JevTool'
 import {KIND_SCHEMA_TYPES} from './kinds'
 import type {JevSignals} from './signals'
@@ -15,6 +16,7 @@ export type {ChoiceSignal, JevSignal, JevSignals, NoulSignal, ScoreSignal} from 
 export type {ChoiceRule, RangeRule} from './kinds'
 export {choice, noul, score} from './signals'
 export {withJevAnswers} from './answers'
+export {JEV_NAMESPACE, type JevTranslationKey} from './i18n'
 
 declare module 'sanity' {
   interface BaseSchemaTypeOptions {
@@ -66,5 +68,6 @@ export const jev = definePlugin<JevPluginConfig | void>((config) => {
     },
     // Where answers are stored. Shown on the attached field, so their fields render nothing.
     schema: {types: KIND_SCHEMA_TYPES},
+    i18n: {bundles: [jevLocaleBundle]},
   }
 })

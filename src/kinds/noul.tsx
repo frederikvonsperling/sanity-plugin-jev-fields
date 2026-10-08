@@ -1,7 +1,8 @@
 import {Flex, Stack, Text} from '@sanity/ui'
-import {defineField, defineType} from 'sanity'
+import {defineField, defineType, useTranslation} from 'sanity'
 
 import {AnswerField} from '../context'
+import {JEV_NAMESPACE} from '../i18n'
 import {Bar, trafficColor, trafficTone, type Tone} from '../look'
 import {TYPE_NAMES} from '../names'
 import {
@@ -14,6 +15,7 @@ import {
   storedOf,
   type EvaluatedValue,
   type Kind,
+  type Level,
   type RangeRule,
   type SignalBase,
 } from './kind'
@@ -56,7 +58,7 @@ export const noulSchemaTypes = [
   }),
 ]
 
-const LEVELS: Partial<Record<Tone, string>> = {critical: 'Low', caution: 'Medium', positive: 'High'}
+const LEVELS: Partial<Record<Tone, Level>> = {critical: 'low', caution: 'medium', positive: 'high'}
 
 export function bindNoul(signal: NoulSignal): Kind {
   const problem =
@@ -89,7 +91,7 @@ export function bindNoul(signal: NoulSignal): Kind {
         value: {...bookkeepingOf(record), _type: TYPE_NAMES.noul, probability},
         chip: {text: `${Math.round(probability * 100)}%`, color: trafficColor(probability)},
         tone: tone === 'positive' ? 'default' : tone,
-        aside: {badge: LEVELS[tone] ?? '', tone},
+        aside: {level: LEVELS[tone] ?? 'medium', tone},
         body: <NoulBody signal={signal} probability={probability} />,
       }
     },
@@ -105,6 +107,7 @@ export function bindNoul(signal: NoulSignal): Kind {
 }
 
 function NoulBody({signal, probability}: {signal: NoulSignal; probability: number}) {
+  const {t} = useTranslation(JEV_NAMESPACE)
   const percent = Math.round(probability * 100)
   return (
     <Stack gap={4}>
@@ -121,7 +124,7 @@ function NoulBody({signal, probability}: {signal: NoulSignal; probability: numbe
       <Bar
         fraction={probability}
         color={trafficColor(probability)}
-        label={`${signal.title ?? 'Yes'}: ${percent}%`}
+        label={`${signal.title ?? t('noul.yes')}: ${percent}%`}
       />
       <Text size={1} muted>
         {probability >= 0.5 ? signal.true : signal.false}

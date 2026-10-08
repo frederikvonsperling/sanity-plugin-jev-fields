@@ -35,6 +35,9 @@ export type RuleLevel = 'warn' | 'require'
 /** A stored answer of any kind, as written to its answer field. */
 export type StoredValue = NoulValue | ScoreValue | ChoiceValue
 
+/** How high a noul's probability is, shown as a translated badge. */
+export type Level = 'low' | 'medium' | 'high'
+
 /** A stored answer as an editor sees it. */
 export interface Reading {
   value: StoredValue
@@ -42,7 +45,7 @@ export interface Reading {
   /** Tone of the detail card: only answers worth acting on colour it. */
   tone: Tone
   /** Right of the detail heading: a badge, or what the answer means. */
-  aside?: {badge: string; tone: Tone} | {note: string}
+  aside?: {badge: string; tone: Tone} | {level: Level; tone: Tone} | {note: string}
   /** Body of the detail card. */
   body: ReactNode
 }

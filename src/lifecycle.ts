@@ -1,5 +1,5 @@
 import {fingerprint} from './content'
-import {evaluateQuestion, JevError, type JevTransport} from './evaluate'
+import {evaluateQuestion, JevError, type JevErrorKind, type JevTransport} from './evaluate'
 import {kindOf, type Kind, type Reading, type StoredValue} from './kinds'
 import {titleOf, type JevSignal, type JevSignals} from './signals'
 
@@ -49,9 +49,19 @@ export interface SignalView {
   stale: boolean
   /** Waiting to evaluate, or evaluating. */
   loading: boolean
-  error: string | null
+  /** Why the last evaluation failed. Gateway errors also carry their kind, for translation. */
+  error: SignalError | null
   /** The Gateway rejected the API key on the last evaluation. */
   keyRejected: boolean
+}
+
+export interface SignalError {
+  /** In English. Shown as-is for errors that don't come from the Gateway. */
+  message: string
+  kind?: JevErrorKind
+  status?: number
+  /** The Gateway's own explanation, if it gave one. */
+  detail?: string
 }
 
 export interface LifecycleSnapshot {
@@ -75,9 +85,7 @@ export interface Lifecycle {
   dispose: () => void
 }
 
-type Status =
-  | {state: 'loading'; hash: string}
-  | {state: 'error'; hash: string; message: string; kind?: JevError['kind']}
+type Status = {state: 'loading'; hash: string} | {state: 'error'; hash: string; error: SignalError}
 
 interface Entry {
   key: string
@@ -203,8 +211,8 @@ export function createLifecycle(clock: Clock = realClock): Lifecycle {
         reading,
         stale: !!reading && reading.value.sourceHash !== entry.hash,
         loading: status?.state === 'loading',
-        error: status?.state === 'error' ? status.message : null,
-        keyRejected: status?.state === 'error' && status.kind === 'auth',
+        error: status?.state === 'error' ? status.error : null,
+        keyRejected: status?.state === 'error' && status.error.kind === 'auth',
       }
     })
     const pending = pendingKeys(current, views)
@@ -279,8 +287,15 @@ export function createLifecycle(clock: Clock = realClock): Lifecycle {
           setStatus(entry.key, {
             state: 'error',
             hash: entry.hash,
-            message: error instanceof Error ? error.message : String(error),
-            kind: error instanceof JevError ? error.kind : undefined,
+            error:
+              error instanceof JevError
+                ? {
+                    message: error.message,
+                    kind: error.kind,
+                    status: error.status,
+                    detail: error.detail,
+                  }
+                : {message: error instanceof Error ? error.message : String(error)},
           })
         }
       }

@@ -143,6 +143,25 @@ Your endpoint forwards the body unchanged to `https://ai-gateway.vercel.sh/v1/ev
 Every value also stores `evaluatedAt`, `model` (e.g. `typesafe-ai/jev`) and a `sourceHash` the
 Studio uses to show when a value is out of date.
 
+## Translations
+
+Everything editors see is in the `jev` namespace of the Studio's translations, in US English.
+Add another language with a locale bundle that uses the same keys (see `JevTranslationKey`):
+
+```ts
+import {defineLocaleResourceBundle} from 'sanity'
+import {JEV_NAMESPACE} from 'sanity-plugin-jev-fields'
+
+export const jevNorwegian = defineLocaleResourceBundle({
+  locale: 'nb-NO',
+  namespace: JEV_NAMESPACE,
+  resources: {'strip.set-up': 'Sett opp Jev' /* … */},
+})
+```
+
+Rule messages and config problems stay in English: Sanity's validation has no translation hook,
+and config problems are meant for schema authors.
+
 ## Development
 
 ```sh

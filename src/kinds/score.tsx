@@ -1,7 +1,8 @@
 import {Flex, Stack, Text} from '@sanity/ui'
-import {defineField, defineType} from 'sanity'
+import {defineField, defineType, useTranslation} from 'sanity'
 
 import {AnswerField} from '../context'
+import {JEV_NAMESPACE} from '../i18n'
 import {Bar, capitalize, NEUTRAL_COLOR, trafficColor, trafficTone, type Tone} from '../look'
 import {TYPE_NAMES} from '../names'
 import {
@@ -180,6 +181,7 @@ function ScoreBody({
   max: number
   color: string
 }) {
+  const {t} = useTranslation(JEV_NAMESPACE)
   const nearest = Math.round(score)
   const fills = segmentFills(score, signal.criteria.length)
   const next = signal.criteria[nearest + 1]
@@ -208,8 +210,12 @@ function ScoreBody({
         ))}
       </Flex>
       <Text size={1} muted>
-        {capitalize(meaningOf(signal.criteria[nearest]))} (score {score.toFixed(1)} of {max}).
-        {next ? ` To move up: ${meaningOf(next)}.` : ''}
+        {t('score.summary', {
+          meaning: capitalize(meaningOf(signal.criteria[nearest])),
+          score: score.toFixed(1),
+          max,
+        })}
+        {next ? ` ${t('score.next', {next: meaningOf(next)})}` : ''}
       </Text>
     </Stack>
   )
