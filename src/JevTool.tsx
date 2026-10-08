@@ -2,8 +2,19 @@ import {Badge, Box, Button, Card, Container, Flex, Heading, Stack, Text} from '@
 import {useState} from 'react'
 
 import {DEFAULT_MODEL, DEFAULT_TAGS, evaluateQuestion, gatewayTransport} from './evaluate'
+import {kindOf} from './kinds'
 import {JevKeyDialog, useSaveKey, useStoredKey} from './secrets'
+import {noul} from './signals'
 import type {JevPluginConfig} from './types'
+
+// One tiny yes/no question: costs a fraction of a cent.
+const CONNECTION_TEST = kindOf(
+  noul({
+    instructions: 'Is this text a connection test?',
+    true: 'It is a test',
+    false: 'It is not a test',
+  }),
+).question
 
 type TestState =
   | {state: 'idle'}
@@ -26,19 +37,14 @@ export function JevTool({config}: {config: JevPluginConfig}) {
     config.transport ?? (apiKey ? gatewayTransport(apiKey, config.endpoint) : undefined)
 
   async function testConnection() {
-    if (!transport) return
+    if (!transport || !CONNECTION_TEST) return
     setTest({state: 'running'})
     try {
-      // One tiny yes/no question: costs a fraction of a cent.
       const result = await evaluateQuestion({
         transport,
         model: config.model ?? DEFAULT_MODEL,
         state: 'This is a connection test.',
-        question: {
-          type: 'boolean',
-          instructions: 'Is this text a connection test?',
-          criteria: {true: 'It is a test', false: 'It is not a test'},
-        },
+        question: CONNECTION_TEST,
         tags: [...(config.tags ?? DEFAULT_TAGS), 'jev:connection-test'],
       })
       setTest({state: 'passed', model: result.model})

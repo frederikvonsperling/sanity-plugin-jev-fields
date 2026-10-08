@@ -43,8 +43,12 @@ One call to the model for one signal, and the answer stored from it, together wi
 _Avoid_: run, result, prediction
 
 **Stale**:
-Said of a stored answer whose state, question or model has changed since its evaluation. A stale answer is kept and flagged, not deleted.
+Said of a stored answer whose state, question or model has changed since its evaluation. A stale answer is kept and flagged, not deleted. A signal with no stored answer of its own type is **unanswered**, not stale.
 _Avoid_: outdated, invalid
+
+**Local edit**:
+An edit to an attached field made in this Studio. A signal evaluates on its own only while its attached field's current state came from a local edit; when someone else's edit arrives, their Studio evaluates it.
+_Avoid_: touched
 
 ### Access
 
