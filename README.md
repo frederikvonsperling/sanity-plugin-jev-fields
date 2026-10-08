@@ -2,10 +2,14 @@
 
 > Beta: expect `0.x` releases to change until the stored value shapes are frozen at `1.0.0`.
 
-Jev signals for Sanity Studio: questions about a field's content, answered by
-[TypeSafe's Jev](https://typesafe.ai) decision model through
-[Vercel AI Gateway](https://vercel.com/ai-gateway) as editors write. Each signal is a chip under
-the field it judges; click it for the details.
+Editorial checks that run while editors write. Ask a question about a field ("Is this easy to
+read?", "How well are the claims backed up?") and the answer shows up under the field, is stored
+next to it for you to query, and can warn or block publishing.
+
+The questions are answered by [TypeSafe's Jev](https://typesafe.ai), a decision model that
+answers a question with a probability instead of writing text, through
+[Vercel AI Gateway](https://vercel.com/ai-gateway). Each question is a signal, shown as a chip
+under the field it judges; click it for the details. There are three kinds:
 
 - `noul`: a yes/no question, answered with the probability that the answer is yes
 - `score`: a position on an ordered scale you define
@@ -13,15 +17,24 @@ the field it judges; click it for the details.
 
 Signals re-evaluate shortly after the field is edited. Opening a document never writes to it.
 
-![A Body field in Sanity Studio with three signal chips under it: Readable 90%, Evidence 1.5 of 3 and Tone Casual. The Evidence details are open: a four-step bar from None to Cited, filled to Anecdotal, and the hint "To move up: add a source or figure."](https://raw.githubusercontent.com/frederikvonsperling/sanity-plugin-jev-fields/main/docs/images/signals.png)
+<img src="https://raw.githubusercontent.com/frederikvonsperling/sanity-plugin-jev-fields/main/docs/images/readable.png" width="612" alt="A Body field in Sanity Studio with three signal chips under it: Readable 90%, Evidence 1.5/3 and Tone Casual. The Readable details are open: a High badge, 90% likely to read easily, a nearly full green bar, and the hint &quot;Short sentences, plain words, clear structure&quot;.">
 
 ## Install
+
+```sh
+npm install sanity-plugin-jev-fields
+```
 
 ```sh
 pnpm add sanity-plugin-jev-fields
 ```
 
-Requires Sanity Studio 6.
+```sh
+yarn add sanity-plugin-jev-fields
+```
+
+Requires Sanity Studio 6. Its peer dependencies, `react` and `react-dom` 19.2 or later and
+`styled-components` 6.1 or later, come with any Studio 6 project.
 
 ## Usage
 
@@ -70,7 +83,11 @@ defineField({
       }),
       tone: choice({
         instructions: 'What is the tone of this article?',
-        criteria: {formal: 'Professional and reserved', casual: 'Conversational and relaxed'},
+        criteria: {
+          formal: 'Professional and reserved',
+          casual: 'Conversational and relaxed',
+          playful: 'Light-hearted and witty',
+        },
       }),
     },
   },
@@ -80,7 +97,12 @@ defineField({
 A signal reads only the field it is attached to. Portable Text, slugs and nested objects are
 flattened to plain text. Each key (`readable`, `evidence`, `tone`) becomes the name of a field
 next to it that stores the answer; `withJevAnswers` adds those fields and stops with an error if a
-name is already taken.
+name is already taken. A `score` takes 2 to 10 criteria and a `choice` 2 to 255 options; see
+[Signal options](#signal-options) for the rest.
+
+<img src="https://raw.githubusercontent.com/frederikvonsperling/sanity-plugin-jev-fields/main/docs/images/tone.png" width="612" alt="A Title field with a Tone Casual chip under it. The Tone details are open: bars for Formal 3%, Casual 97% and Playful 0%, the meaning &quot;Conversational and relaxed&quot;, and the note &quot;Out of date: the field changed since this was evaluated.&quot;">
+
+When a field changes, its answers are marked out of date until they are evaluated again.
 
 ## Rules
 
@@ -92,10 +114,14 @@ options: {
   jev: {
     readable: noul({...signal, warn: {atLeast: 0.6}}), // probability, 0–1
     evidence: score({...signal, require: {atLeast: 2}}), // position on the scale
+    risk: score({...signal, colors: 'reverse', warn: {atMost: 1}}), // lower is better
     tone: choice({...signal, warn: {oneOf: ['formal', 'casual']}}),
   },
 }
 ```
+
+`noul` and `score` rules take `atLeast`, `atMost` or both. `choice` rules take `oneOf`, the options
+the answer must be one of.
 
 Rules judge the stored answer, so they say nothing until a signal has been evaluated, and an
 answer that is out of date is still judged as it is.
@@ -113,36 +139,51 @@ when a field gets close.
 Open the **Jev** tool in the Studio, click **Set key** and paste an AI Gateway API key. The tool
 shows whether a key is set, when it last changed, and can test the connection.
 
-The key is stored in the document `secrets.jev` in your dataset. Unauthenticated queries can't
-read it, but anyone who can read the dataset can: every Studio user, and every API token with read
-access, such as a frontend's read or preview token. It is also included in dataset exports and
-backups. Use a dedicated key with a spend limit.
+> **Anyone who can read the dataset can read the key.** It is stored in the document
+> `secrets.jev`. Unauthenticated queries can't read it, but every Studio user can, and so can
+> every API token with read access, such as a frontend's read or preview token. It is also
+> included in dataset exports and backups. Use a dedicated key with a spend limit.
+
+You can also pass the key as the plugin's `apiKey` option, but then it is bundled into the
+Studio's JavaScript, where anyone who can load the Studio can read it.
 
 If editors and tokens must never see the key, send requests through your own server instead:
 
 ```ts
 jev({
   transport: (request, {signal}) =>
-    fetch('/api/jev', {method: 'POST', body: JSON.stringify(request), signal}),
+    fetch('/api/jev', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(request),
+      signal,
+    }),
 })
 ```
 
 Your endpoint forwards the body unchanged to `https://ai-gateway.vercel.sh/v1/evaluate` with an
-`Authorization: Bearer <key>` header, and returns the Gateway's response.
+`Authorization: Bearer <key>` header and a `Content-Type: application/json` header, and returns
+the Gateway's response with its status.
+
+When more than one is set, `transport` wins over `apiKey`, and `apiKey` over the stored key.
 
 ## Stored values
 
 ```groq
 *[_type == "article"]{
   title,
-  "readable": readable.probability,        // 0–1
-  "evidence": evidence{score, max, label},  // score runs from 0 to max
-  "tone": tone.choice
+  // noul: probability that the answer is yes, 0–1
+  "readable": readable.probability,
+  // score: score runs from 0 to max; label is the nearest criterion; confidence is 0–1
+  "evidence": evidence{score, max, label, confidence},
+  // choice: the chosen option, confidence 0–1, and a probability for every option
+  "tone": tone{choice, confidence, probabilities[]{option, probability}}
 }
 ```
 
 Every value also stores `evaluatedAt`, `model` (e.g. `typesafe-ai/jev`) and a `sourceHash` the
-Studio uses to show when a value is out of date.
+Studio uses to show when a value is out of date. The types `NoulValue`, `ScoreValue` and
+`ChoiceValue` describe the full shapes.
 
 ## Translations
 
@@ -163,22 +204,50 @@ export const jevNorwegian = defineLocaleResourceBundle({
 Rule messages and config problems stay in English: Sanity's validation has no translation hook,
 and config problems are meant for schema authors.
 
-## Development
+## Options reference
 
-```sh
-pnpm install
-pnpm test
-pnpm build
-```
+### Plugin options
 
-`pnpm record-fixtures` re-records the real Gateway responses in `src/__fixtures__` (needs
-`AI_GATEWAY_API_KEY` in `.env`). [CONTEXT.md](./CONTEXT.md) defines the vocabulary and
-[docs/adr](./docs/adr) records the main decisions.
+Passed to `jev({...})`. All are optional.
 
-To release a change, add a changeset to its PR with `pnpm changeset`. The release workflow keeps a
-"Version packages" PR up to date; merging it stages the new version on npm (trusted publishing,
-no token) and creates the GitHub release. A maintainer then approves the staged version on
-npmjs.com, with 2FA, to publish it.
+| Option       | Default                                    | Description                                                                                                                     |
+| ------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `transport`  |                                            | `(request, {signal}) => Promise<Response>`. Sends requests yourself, e.g. through your own server. See [API key](#api-key).     |
+| `apiKey`     |                                            | AI Gateway key. Bundled into the Studio's JavaScript; prefer the Jev tool or `transport`.                                       |
+| `endpoint`   | `https://ai-gateway.vercel.sh/v1/evaluate` | Where requests go. Ignored when `transport` is set.                                                                             |
+| `model`      | `typesafe-ai/jev`                          | Decision model to call.                                                                                                         |
+| `debounceMs` | `500`                                      | Delay after the last edit before re-evaluating, in milliseconds.                                                                |
+| `tool`       | `true`                                     | Adds the Jev tool for setting, testing and removing the stored key.                                                             |
+| `tags`       | `['feature:jev-fields']`                   | AI Gateway reporting tags, for cost attribution. Each request also gets a tag for its signal, e.g. `jev.noul:article.readable`. |
+
+### Signal options
+
+Every signal takes:
+
+| Option         | Description                                                                         |
+| -------------- | ----------------------------------------------------------------------------------- |
+| `instructions` | Required. The question Jev answers about the attached field.                        |
+| `title`        | Chip and detail heading. Defaults to the signal's key: `readable` → "Readable".     |
+| `warn`         | Shows a warning on the field when the answer breaks this rule. See [Rules](#rules). |
+| `require`      | Blocks publishing when the answer breaks this rule.                                 |
+
+And, per kind:
+
+| Kind     | Option     | Description                                                                                                                                                         |
+| -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `noul`   | `true`     | Required. What a yes means. Shown when the probability is 50% or higher.                                                                                            |
+| `noul`   | `false`    | Required. What a no means. Shown when the probability is below 50%.                                                                                                 |
+| `noul`   | `label`    | Short phrase after the percentage, e.g. "likely to read easily".                                                                                                    |
+| `score`  | `criteria` | Required. 2 to 10 criteria, lowest first. Text before a colon is the short label.                                                                                   |
+| `score`  | `colors`   | `'traffic'` (default): red at the bottom, green at the top. `'reverse'`: green at the bottom, for scales where lower is better. `'neutral'`: one colour throughout. |
+| `choice` | `criteria` | Required. 2 to 255 options, as option name → what it means.                                                                                                         |
+
+Rules on a `noul` take probabilities (0–1), rules on a `score` take positions on the scale (0 to
+the number of criteria minus one), and rules on a `choice` take option names.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## License
 
