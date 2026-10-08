@@ -176,8 +176,9 @@ pnpm build
 [docs/adr](./docs/adr) records the main decisions.
 
 To release a change, add a changeset to its PR with `pnpm changeset`. The release workflow keeps a
-"Version packages" PR up to date; merging it publishes to npm with trusted publishing and
-provenance, and creates the GitHub release.
+"Version packages" PR up to date; merging it stages the new version on npm (trusted publishing,
+no token) and creates the GitHub release. A maintainer then approves the staged version on
+npmjs.com, with 2FA, to publish it.
 
 ## License
 
