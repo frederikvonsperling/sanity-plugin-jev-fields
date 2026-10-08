@@ -1,8 +1,8 @@
-import {Stack} from '@sanity/ui'
+import {Card, Stack, Text} from '@sanity/ui'
 import {useState} from 'react'
 import type {FormPatch, InputProps, PatchEvent} from 'sanity'
 
-import {toText} from './content'
+import {estimateTokens, nearTokenLimit, STATE_TOKEN_LIMIT, toText} from './content'
 import {JevKeyDialog} from './secrets'
 import type {JevSignals} from './signals'
 import {SignalDetail, SignalStrip} from './ui'
@@ -14,10 +14,11 @@ type OnChange = (patch: FormPatch | FormPatch[] | PatchEvent) => void
 export function AttachedInput({signals, ...props}: InputProps & {signals: JevSignals}) {
   const parentOnChange: OnChange = props.onChange
   const {value} = props
+  const state = toText(value)
   const jev = useSignals({
     signals,
     path: props.path,
-    state: toText(value),
+    state,
     readOnly: !!props.readOnly,
   })
   // Signals only evaluate on their own after an edit made here, never because someone
@@ -47,6 +48,14 @@ export function AttachedInput({signals, ...props}: InputProps & {signals: JevSig
           onSetUp={() => setKeyDialogOpen(true)}
         />
       </div>
+      {nearTokenLimit(state) && (
+        <Card padding={3} radius={2} tone="caution" border>
+          <Text size={1}>
+            This field is about {Math.round(estimateTokens(state) / 1000)}k tokens long. Jev reads
+            at most {STATE_TOKEN_LIMIT / 1000}k per question, so longer text may be refused.
+          </Text>
+        </Card>
+      )}
       {selectedSignal && (
         <SignalDetail
           signal={selectedSignal}

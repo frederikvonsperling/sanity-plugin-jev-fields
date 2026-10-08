@@ -190,3 +190,62 @@ describe('score criteria', () => {
     expect(meaningOf('plain')).toBe('plain')
   })
 })
+
+describe('rules', () => {
+  const stored = {
+    noul: (probability: number) => ({_type: 'jev.noul', probability}),
+    score: (value: number) => ({_type: 'jev.score', score: value, max: 2}),
+    choice: (option: string) => ({_type: 'jev.choice', choice: option}),
+  }
+
+  it('reports a noul outside its bounds, in percent', () => {
+    const kind = kindOf({...readable, warn: {atLeast: 0.6}, require: {atMost: 0.95}})
+    expect(kind.check('warn', stored.noul(0.42), 'Readable')).toBe('Readable is 42%, below 60%.')
+    expect(kind.check('warn', stored.noul(0.6), 'Readable')).toBeUndefined()
+    expect(kind.check('require', stored.noul(0.97), 'Readable')).toBe('Readable is 97%, above 95%.')
+  })
+
+  it('reports a score outside its bounds, with the nearest criteria', () => {
+    const kind = kindOf({...evidence, require: {atLeast: 2}})
+    expect(kind.check('require', stored.score(0.6), 'Evidence')).toBe(
+      'Evidence is 0.6 (some), below 2 (all).',
+    )
+    expect(kind.check('require', stored.score(2), 'Evidence')).toBeUndefined()
+  })
+
+  it('reports a choice that is not one of the allowed options', () => {
+    const kind = kindOf({...tone, warn: {oneOf: ['formal']}})
+    expect(kind.check('warn', stored.choice('casual'), 'Tone')).toBe(
+      'Tone is "casual", not "formal".',
+    )
+    expect(kind.check('warn', stored.choice('formal'), 'Tone')).toBeUndefined()
+  })
+
+  it('says nothing without a rule at that level, or without an answer', () => {
+    const kind = kindOf({...readable, warn: {atLeast: 0.6}})
+    expect(kind.check('require', stored.noul(0.1), 'Readable')).toBeUndefined()
+    expect(kind.check('warn', undefined, 'Readable')).toBeUndefined()
+    expect(kind.check('warn', stored.score(0), 'Readable')).toBeUndefined()
+  })
+
+  it.each([
+    [{...readable, warn: {atLeast: 1.5}}, '`warn.atLeast` must be a number from 0 to 1.'],
+    [{...evidence, require: {atMost: 5}}, '`require.atMost` must be a number from 0 to 2.'],
+    [
+      {...tone, warn: {oneOf: ['playful']}},
+      '`warn.oneOf` names "playful", which is not an option.',
+    ],
+    [{...tone, require: {oneOf: []}}, '`require.oneOf` must list at least one option.'],
+    [
+      choice({
+        instructions: 'Which?',
+        criteria: Object.fromEntries(Array.from({length: 256}, (_, i) => [`o${i}`, `${i}`])),
+      }),
+      'A choice signal allows at most 255 options.',
+    ],
+  ])('explains a rule or limit that cannot work: %#', (signal, problem) => {
+    const kind = kindOf(signal)
+    expect(kind.problem).toBe(problem)
+    expect(kind.question).toBeUndefined()
+  })
+})

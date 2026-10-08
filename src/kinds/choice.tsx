@@ -15,14 +15,41 @@ import {
   text,
   type EvaluatedValue,
   type Kind,
+  type RuleLevel,
   type SignalBase,
 } from './kind'
 
 /** @public */
 export interface ChoiceSignal extends SignalBase {
   type: 'choice'
-  /** At least two options: option name → what it means. */
+  /** Two to 255 options: option name → what it means. */
   criteria: Record<string, string>
+  /** Warn unless the answer is one of these options, e.g. `{oneOf: ['formal', 'casual']}`. */
+  warn?: ChoiceRule
+  /** Block publishing unless the answer is one of these options. */
+  require?: ChoiceRule
+}
+
+/** Options an answer must be one of. @public */
+export interface ChoiceRule {
+  oneOf: string[]
+}
+
+/** Why a choice signal can't be asked, if it can't. */
+function choiceProblem(signal: ChoiceSignal, options: string[]): string | undefined {
+  if (options.length < 2) return 'A choice signal needs at least two options.'
+  if (options.length > 255) return 'A choice signal allows at most 255 options.'
+  for (const level of ['warn', 'require'] as const satisfies RuleLevel[]) {
+    const rule = signal[level]
+    if (!rule) continue
+    if (!Array.isArray(rule.oneOf) || rule.oneOf.length === 0) {
+      return `\`${level}.oneOf\` must list at least one option.`
+    }
+    const unknown = rule.oneOf.find((option) => !options.includes(option))
+    if (unknown !== undefined)
+      return `\`${level}.oneOf\` names "${unknown}", which is not an option.`
+  }
+  return undefined
 }
 
 /** One option from a named set. @public */
@@ -79,13 +106,14 @@ export const choiceSchemaTypes = [
 
 export function bindChoice(signal: ChoiceSignal): Kind {
   const criteria = signal.criteria ?? {}
-  const askable = Object.keys(criteria).length >= 2
+  const problem = choiceProblem(signal, Object.keys(criteria))
+
   return {
     typeName: TYPE_NAMES.choice,
-    question: askable
+    question: !problem
       ? {type: 'choice', instructions: signal.instructions, criteria: signal.criteria}
       : undefined,
-    problem: askable ? undefined : 'A choice signal needs at least two options.',
+    problem,
 
     toStored(answer) {
       if (answer.type !== 'choice') return mismatch()
@@ -128,6 +156,14 @@ export function bindChoice(signal: ChoiceSignal): Kind {
         aside: meaning ? {note: meaning} : undefined,
         body: <ChoiceBody signal={signal} choice={record.choice} probabilities={probabilities} />,
       }
+    },
+
+    check(level, stored, title) {
+      const record = storedOf(stored, TYPE_NAMES.choice)
+      const rule = signal[level]
+      if (!record || typeof record.choice !== 'string' || !rule?.oneOf) return undefined
+      if (rule.oneOf.includes(record.choice)) return undefined
+      return `${title} is "${record.choice}", not ${rule.oneOf.map((option) => `"${option}"`).join(' or ')}.`
     },
   }
 }

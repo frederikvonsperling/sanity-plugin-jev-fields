@@ -4,8 +4,8 @@ import {mismatch, type Kind} from './kind'
 import {bindNoul, noulSchemaTypes} from './noul'
 import {bindScore, scoreSchemaTypes} from './score'
 
-export type {Kind, Reading, StoredValue} from './kind'
-export {choice, type ChoiceSignal, type ChoiceValue} from './choice'
+export type {Kind, RangeRule, Reading, RuleLevel, StoredValue} from './kind'
+export {choice, type ChoiceRule, type ChoiceSignal, type ChoiceValue} from './choice'
 export {noul, type NoulSignal, type NoulValue} from './noul'
 export {score, type ScoreSignal, type ScoreValue} from './score'
 
@@ -34,6 +34,7 @@ function bind(signal: JevSignal): Kind {
         problem: 'Unknown signal type.',
         toStored: mismatch,
         read: () => undefined,
+        check: () => undefined,
       }
   }
 }

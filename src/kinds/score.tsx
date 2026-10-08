@@ -9,11 +9,14 @@ import {
   bookkeepingOf,
   mismatch,
   number,
+  rangeRuleProblem,
+  rangeViolation,
   round,
   storedOf,
   text,
   type EvaluatedValue,
   type Kind,
+  type RangeRule,
   type SignalBase,
 } from './kind'
 
@@ -31,6 +34,10 @@ export interface ScoreSignal extends SignalBase {
    * `neutral`: one colour, for scales that aren't good or bad (e.g. reading level).
    */
   colors?: 'traffic' | 'reverse' | 'neutral'
+  /** Warn when the score is outside these bounds, as criterion positions: `{atLeast: 2}`. */
+  warn?: RangeRule
+  /** Block publishing when the score is outside these bounds. */
+  require?: RangeRule
 }
 
 /** A position on an ordered scale. @public */
@@ -101,7 +108,7 @@ export function bindScore(signal: ScoreSignal): Kind {
       ? 'A score signal needs at least two criteria.'
       : criteria.length > 10
         ? 'A score signal allows at most ten criteria.'
-        : undefined
+        : rangeRuleProblem(signal, 0, criteria.length - 1)
   return {
     typeName: TYPE_NAMES.score,
     question: problem ? undefined : {type: 'score', instructions: signal.instructions, criteria},
@@ -145,6 +152,19 @@ export function bindScore(signal: ScoreSignal): Kind {
         },
         body: <ScoreBody signal={signal} score={value} max={max} color={look.color} />,
       }
+    },
+
+    check(level, stored, title) {
+      const record = storedOf(stored, TYPE_NAMES.score)
+      if (!record || typeof record.score !== 'number') return undefined
+      // `0.6 (anecdotal)`: a position on the scale and the criterion nearest to it.
+      const describe = (position: number) => {
+        const label = shortLabel(criteria[Math.round(position)])
+        const number = Number.isInteger(position) ? String(position) : position.toFixed(1)
+        return label ? `${number} (${label})` : number
+      }
+      const broken = rangeViolation(record.score, signal[level], describe)
+      return broken && `${title} is ${describe(record.score)}, ${broken}.`
     },
   }
 }

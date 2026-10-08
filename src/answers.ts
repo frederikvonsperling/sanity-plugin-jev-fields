@@ -1,5 +1,6 @@
-import {defineField, type SchemaTypeDefinition} from 'sanity'
+import {defineField, type Rule, type SchemaTypeDefinition} from 'sanity'
 
+import {kindOf, type RuleLevel} from './kinds'
 import {TYPE_NAMES} from './names'
 import {titleOf, type JevSignals} from './signals'
 
@@ -47,8 +48,8 @@ function withAnswerFields(definition: unknown): unknown {
     const fields = definition.fields.flatMap((field: unknown) => {
       const rewritten = withAnswerFields(field)
       const signals = signalsOf(field)
-      if (!signals || !isRecord(field)) return [rewritten]
-      return [rewritten, ...answerFieldsFor(field, signals, existing)]
+      if (!signals || !isRecord(field) || !isRecord(rewritten)) return [rewritten]
+      return [withRules(rewritten, signals), ...answerFieldsFor(field, signals, existing)]
     })
     result = {...result, fields}
   }
@@ -80,4 +81,37 @@ function answerFieldsFor(field: Definition, signals: JevSignals, existing: Map<u
       }),
     ]
   })
+}
+
+const LEVELS: RuleLevel[] = ['warn', 'require']
+
+/**
+ * Adds a validation rule to the attached field for each signal's `warn` and `require`, after
+ * the field's own validation. Rules judge the stored answer, so they say nothing until there is
+ * one.
+ */
+function withRules(field: Definition, signals: JevSignals): Definition {
+  const checks = Object.entries(signals).flatMap(([key, signal]) =>
+    LEVELS.filter((level) => signal[level]).map((level) => ({key, signal, level})),
+  )
+  if (checks.length === 0) return field
+
+  const own = field.validation
+  const validation = (rule: Rule) => {
+    const ownRules = (Array.isArray(own) ? own : own ? [own] : []).flatMap((entry: unknown) => {
+      const result: unknown = typeof entry === 'function' ? entry(rule) : entry
+      return Array.isArray(result) ? result : result ? [result] : []
+    })
+    const jevRules = checks.map(({key, signal, level}) => {
+      const kind = kindOf(signal)
+      const title = titleOf(key, signal)
+      const custom = rule.custom((_value, context) => {
+        const stored = isRecord(context.parent) ? context.parent[key] : undefined
+        return kind.check(level, stored, title) ?? true
+      })
+      return level === 'require' ? custom.error() : custom.warning()
+    })
+    return [...ownRules, ...jevRules]
+  }
+  return {...field, validation}
 }

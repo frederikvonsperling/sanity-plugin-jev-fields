@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 
-import {fingerprint, toText} from './content'
+import {estimateTokens, fingerprint, nearTokenLimit, toText} from './content'
 
 const block = (text: string) => ({
   _type: 'block',
@@ -33,5 +33,13 @@ describe('fingerprint', () => {
     expect(fingerprint(['a', 1])).toBe(fingerprint(['a', 1]))
     expect(fingerprint(['a', 1])).not.toBe(fingerprint(['a', 2]))
     expect(fingerprint('x')).toMatch(/^[0-9a-f]{8}$/)
+  })
+})
+
+describe('token estimate', () => {
+  it('counts about four characters per token and warns near the 32k limit', () => {
+    expect(estimateTokens('abcdefgh')).toBe(2)
+    expect(nearTokenLimit('x'.repeat(4 * 27_000))).toBe(false)
+    expect(nearTokenLimit('x'.repeat(4 * 29_000))).toBe(true)
   })
 })

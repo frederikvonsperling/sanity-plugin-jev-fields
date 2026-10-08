@@ -23,6 +23,15 @@ export interface EvaluatedValue {
   sourceHash?: string
 }
 
+/** Bounds on a probability (Noul, 0–1) or a score (0 to the top criterion). @public */
+export interface RangeRule {
+  atLeast?: number
+  atMost?: number
+}
+
+/** `warn` gives a warning, `require` an error that blocks publishing. */
+export type RuleLevel = 'warn' | 'require'
+
 /** A stored answer of any kind, as written to its answer field. */
 export type StoredValue = NoulValue | ScoreValue | ChoiceValue
 
@@ -49,6 +58,11 @@ export interface Kind {
   toStored(answer: JevAnswer): StoredValue
   /** Reads a stored value. Anything that isn't a complete answer of this kind is unanswered. */
   read(stored: unknown): Reading | undefined
+  /**
+   * What is wrong with a stored answer, judged by the signal's `warn` or `require` rule.
+   * Nothing when the rule holds, the signal has no such rule, or there is no answer.
+   */
+  check(level: RuleLevel, stored: unknown, title: string): string | undefined
 }
 
 export const round = (value: number, digits = 4) => Math.round(value * 10 ** digits) / 10 ** digits
@@ -79,3 +93,33 @@ export function bookkeepingOf(stored: Record<string, unknown>): EvaluatedValue {
 
 export const text = (value: unknown) => (typeof value === 'string' ? value : undefined)
 export const number = (value: unknown) => (typeof value === 'number' ? value : undefined)
+
+/** Why a range rule is invalid for values from `min` to `max`, if it is. */
+export function rangeRuleProblem(
+  rules: Partial<Record<RuleLevel, RangeRule>>,
+  min: number,
+  max: number,
+): string | undefined {
+  for (const level of ['warn', 'require'] as const) {
+    const rule = rules[level]
+    if (!rule) continue
+    for (const bound of ['atLeast', 'atMost'] as const) {
+      const value = rule[bound]
+      if (value !== undefined && (typeof value !== 'number' || value < min || value > max)) {
+        return `\`${level}.${bound}\` must be a number from ${min} to ${max}.`
+      }
+    }
+  }
+  return undefined
+}
+
+/** How `value` breaks a range rule, e.g. `below 60%`, using `format` for both numbers. */
+export function rangeViolation(
+  value: number,
+  rule: RangeRule | undefined,
+  format: (value: number) => string,
+): string | undefined {
+  if (rule?.atLeast !== undefined && value < rule.atLeast) return `below ${format(rule.atLeast)}`
+  if (rule?.atMost !== undefined && value > rule.atMost) return `above ${format(rule.atMost)}`
+  return undefined
+}
