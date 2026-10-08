@@ -81,6 +81,32 @@ flattened to plain text. Each key (`readable`, `evidence`, `tone`) becomes the n
 next to it that stores the answer; `withJevAnswers` adds those fields and stops with an error if a
 name is already taken.
 
+## Rules
+
+Give a signal a `warn` or `require` rule to act on its answer: `warn` shows a warning on the
+attached field, `require` an error that blocks publishing.
+
+```ts
+options: {
+  jev: {
+    readable: noul({...signal, warn: {atLeast: 0.6}}), // probability, 0–1
+    evidence: score({...signal, require: {atLeast: 2}}), // position on the scale
+    tone: choice({...signal, warn: {oneOf: ['formal', 'casual']}}),
+  },
+}
+```
+
+Rules judge the stored answer, so they say nothing until a signal has been evaluated, and an
+answer that is out of date is still judged as it is.
+
+## What Jev is good at
+
+Jev judges meaning in text: tone, clarity, whether claims are backed up. It reads only text, so
+images and other media in a field are ignored. It is not built for counting or arithmetic: ask
+"Is this under 150 words?" in a validation rule instead. Test signals on content in your own
+languages before relying on them. A field's text may be up to about 32k tokens; the Studio warns
+when a field gets close.
+
 ## API key
 
 Open the **Jev** tool in the Studio, click **Set key** and paste an AI Gateway API key. The tool

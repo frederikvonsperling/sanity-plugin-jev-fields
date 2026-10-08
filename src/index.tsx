@@ -12,6 +12,7 @@ import type {JevPluginConfig} from './types'
 export type * from './types'
 export type {JevAnswer, JevQuestion, JevRequest, JevTransport} from './evaluate'
 export type {ChoiceSignal, JevSignal, JevSignals, NoulSignal, ScoreSignal} from './signals'
+export type {ChoiceRule, RangeRule} from './kinds'
 export {choice, noul, score} from './signals'
 export {withJevAnswers} from './answers'
 

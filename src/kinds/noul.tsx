@@ -8,10 +8,13 @@ import {
   bookkeepingFields,
   bookkeepingOf,
   mismatch,
+  rangeRuleProblem,
+  rangeViolation,
   round,
   storedOf,
   type EvaluatedValue,
   type Kind,
+  type RangeRule,
   type SignalBase,
 } from './kind'
 
@@ -24,6 +27,10 @@ export interface NoulSignal extends SignalBase {
   false: string
   /** Short phrase after the percentage, e.g. "likely to read easily". */
   label?: string
+  /** Warn when the probability is outside these bounds (0–1), e.g. `{atLeast: 0.6}`. */
+  warn?: RangeRule
+  /** Block publishing when the probability is outside these bounds (0–1). */
+  require?: RangeRule
 }
 
 /** A yes/no signal: the chip shows the probability that the answer is yes. @public */
@@ -52,18 +59,21 @@ export const noulSchemaTypes = [
 const LEVELS: Partial<Record<Tone, string>> = {critical: 'Low', caution: 'Medium', positive: 'High'}
 
 export function bindNoul(signal: NoulSignal): Kind {
-  const askable = !!signal.true?.trim() && !!signal.false?.trim()
+  const problem =
+    !signal.true?.trim() || !signal.false?.trim()
+      ? 'A noul signal needs both `true` and `false` text.'
+      : rangeRuleProblem(signal, 0, 1)
   return {
     typeName: TYPE_NAMES.noul,
     // Jev's API and the Gateway call a noul "boolean".
-    question: askable
+    question: !problem
       ? {
           type: 'boolean',
           instructions: signal.instructions,
           criteria: {true: signal.true, false: signal.false},
         }
       : undefined,
-    problem: askable ? undefined : 'A noul signal needs both `true` and `false` text.',
+    problem,
 
     toStored(answer) {
       if (answer.type !== 'boolean') return mismatch()
@@ -82,6 +92,14 @@ export function bindNoul(signal: NoulSignal): Kind {
         aside: {badge: LEVELS[tone] ?? '', tone},
         body: <NoulBody signal={signal} probability={probability} />,
       }
+    },
+
+    check(level, stored, title) {
+      const record = storedOf(stored, TYPE_NAMES.noul)
+      if (!record || typeof record.probability !== 'number') return undefined
+      const percent = (value: number) => `${Math.round(value * 100)}%`
+      const broken = rangeViolation(record.probability, signal[level], percent)
+      return broken && `${title} is ${percent(record.probability)}, ${broken}.`
     },
   }
 }

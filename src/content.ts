@@ -41,3 +41,12 @@ export function fingerprint(input: unknown): string {
   }
   return (hash >>> 0).toString(16).padStart(8, '0')
 }
+
+/** Jev reads at most this many tokens of state (plus the longest question) per request. */
+export const STATE_TOKEN_LIMIT = 32_000
+
+/** A rough token count: about four characters per token for English text. */
+export const estimateTokens = (text: string) => Math.ceil(text.length / 4)
+
+/** True when a field's text is close enough to Jev's limit that evaluations may be refused. */
+export const nearTokenLimit = (text: string) => estimateTokens(text) > STATE_TOKEN_LIMIT * 0.875
