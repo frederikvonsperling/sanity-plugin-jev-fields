@@ -1,19 +1,29 @@
-import {defineField, type Rule, type SchemaTypeDefinition} from 'sanity'
+import {defineField, type Rule, type SchemaTypeDefinition, type SchemaValidationValue} from 'sanity'
 
-import {isRecord} from './content'
+import {isDocumentObjectValue} from './content'
 import {bindQuestionToKind, RULE_LEVELS} from './kinds'
 import {TYPE_NAMES} from './names'
 import {getQuestionTitle, type JevQuestions} from './questions'
 
-type Definition = Record<string, unknown>
+/** What adding answer fields reads from a schema type, field or array member definition. */
+interface Definition {
+  name?: string
+  type?: string
+  options?: {jev?: JevQuestions}
+  group?: string | string[]
+  fieldset?: string
+  validation?: SchemaValidationValue
+  of?: Definition[]
+  fields?: Definition[]
+}
 
-export function getQuestionsFromDefinition(definition: unknown): JevQuestions | undefined {
-  if (!isRecord(definition) || !isRecord(definition.options)) return undefined
+type ValidationBuilder = Extract<SchemaValidationValue, (rule: Rule) => SchemaValidationValue>
 
-  const {jev} = definition.options
-
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `options.jev` is typed for schema authors via declaration merging
-  return isRecord(jev) ? (jev as JevQuestions) : undefined
+/** `options.jev` is typed for schema authors through declaration merging. */
+export function getQuestionsFromDefinition(
+  definition: Pick<Definition, 'options'>,
+): JevQuestions | undefined {
+  return definition.options?.jev
 }
 
 /**
@@ -26,14 +36,20 @@ export function getQuestionsFromDefinition(definition: unknown): JevQuestions | 
  * @public
  */
 export function withJevAnswers<T extends SchemaTypeDefinition>(types: T[]): T[] {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only `fields` are rewritten
-  return types.map((type) => addAnswerFieldsRecursively(type) as T)
+  return types.map((type) => {
+    // SAFETY: every schema type definition is an object with the optional properties of
+    // `Definition`; Sanity calls `validation` with a `Rule` whatever its declared rule type.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    const definition = type as Definition
+
+    // SAFETY: only `of`, `fields` and `validation` are rewritten, keeping the definition a `T`.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    return addAnswerFieldsRecursively(definition) as T
+  })
 }
 
 /** Rewrites `fields` (and inline object members) of a type or field definition. */
-function addAnswerFieldsRecursively(definition: unknown): unknown {
-  if (!isRecord(definition)) return definition
-
+function addAnswerFieldsRecursively(definition: Definition): Definition {
   let result = definition
 
   if (Array.isArray(definition.of)) {
@@ -43,14 +59,14 @@ function addAnswerFieldsRecursively(definition: unknown): unknown {
   if (Array.isArray(definition.fields)) {
     // Answer fields declared already (or added by an earlier call) are kept, not duplicated.
     const existingFieldTypesByName = new Map(
-      definition.fields.filter(isRecord).map((field) => [field.name, field.type] as const),
+      definition.fields.map((field) => [field.name, field.type] as const),
     )
 
-    const fields = definition.fields.flatMap((field: unknown) => {
+    const fields = definition.fields.flatMap((field) => {
       const rewrittenField = addAnswerFieldsRecursively(field)
       const questions = getQuestionsFromDefinition(field)
 
-      if (!questions || !isRecord(field) || !isRecord(rewrittenField)) return [rewrittenField]
+      if (!questions) return [rewrittenField]
 
       return [
         addRuleValidation(rewrittenField, questions),
@@ -67,7 +83,7 @@ function addAnswerFieldsRecursively(definition: unknown): unknown {
 function createAnswerFields(
   attachedField: Definition,
   questions: JevQuestions,
-  existingFieldTypesByName: Map<unknown, unknown>,
+  existingFieldTypesByName: Map<string | undefined, string | undefined>,
 ) {
   return Object.entries(questions).flatMap(([key, question]) => {
     const answerType = TYPE_NAMES[question.type]
@@ -92,19 +108,22 @@ function createAnswerFields(
         type: answerType,
         // Same group and fieldset as the attached field, so the answer field is mounted (and
         // can store answers) whenever the attached field is. Its type renders nothing.
-        group: typeof group === 'string' || Array.isArray(group) ? group : undefined,
-        fieldset: typeof fieldset === 'string' ? fieldset : undefined,
+        group,
+        fieldset,
       }),
     ]
   })
 }
 
 /** `undefined` → `[]`, a value → `[value]`, an array as it is. */
-function toArray(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value
+function toArray(validation: SchemaValidationValue): SchemaValidationValue[] {
+  if (Array.isArray(validation)) return validation
 
-  return value ? [value] : []
+  return validation ? [validation] : []
 }
+
+const isValidationBuilder = (validation: SchemaValidationValue): validation is ValidationBuilder =>
+  typeof validation === 'function'
 
 /**
  * Adds a validation rule to the attached field for each question's `warn` and `require`, after
@@ -122,7 +141,7 @@ function addRuleValidation(attachedField: Definition, questions: JevQuestions): 
 
   const validation = (rule: Rule) => {
     const ownRules = toArray(ownValidation).flatMap((entry) =>
-      toArray(typeof entry === 'function' ? entry(rule) : entry),
+      toArray(isValidationBuilder(entry) ? entry(rule) : entry),
     )
 
     const jevRules = rulesToValidate.map(({key, question, level}) => {
@@ -130,7 +149,7 @@ function addRuleValidation(attachedField: Definition, questions: JevQuestions): 
       const title = getQuestionTitle(key, question)
 
       const customRule = rule.custom((_value, context) => {
-        const stored = isRecord(context.parent) ? context.parent[key] : undefined
+        const stored = isDocumentObjectValue(context.parent) ? context.parent[key] : undefined
 
         return kind.describeRuleViolation(level, stored, title) ?? true
       })

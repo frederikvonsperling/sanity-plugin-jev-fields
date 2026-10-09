@@ -2,6 +2,7 @@ import {describe, expect, it, vi} from 'vitest'
 
 import invalidKey from './__fixtures__/gateway/error-invalid-key.json'
 import noulFixture from './__fixtures__/gateway/noul.json'
+import type {DocumentObject, DocumentValue} from './content'
 import type {JevRequest, JevTransport} from './evaluate'
 import type {StoredValue} from './kinds'
 import {createLifecycle, type Clock, type LifecycleInputs} from './lifecycle'
@@ -13,18 +14,20 @@ const readable = noul({
   false: 'Dense or jargon-heavy',
 })
 
-const respond = (fixture: {status: number; response: unknown}) =>
+const respond = (fixture: {status: number; response: DocumentValue}) =>
   new Response(JSON.stringify(fixture.response), {status: fixture.status})
 
 /** A clock whose time only moves when a test says so. */
 function fakeClock() {
   let time = Date.parse('2026-10-08T10:00:00.000Z')
   let timers: {at: number; callback: () => void}[] = []
+
   const clock: Clock & {tick: (ms: number) => void} = {
     now: () => new Date(time),
     after(ms, callback) {
       const timer = {at: time + ms, callback}
       timers.push(timer)
+
       return () => {
         timers = timers.filter((other) => other !== timer)
       }
@@ -33,17 +36,21 @@ function fakeClock() {
       time += ms
       const due = timers.filter((timer) => timer.at <= time)
       timers = timers.filter((timer) => timer.at > time)
+
       for (const timer of due) timer.callback()
     },
   }
+
   return clock
 }
 
 /** A transport whose requests stay out until a test answers them. */
 function heldTransport() {
   const calls: {request: JevRequest; signal?: AbortSignal; answer: (r: Response) => void}[] = []
+
   const transport: JevTransport = (request, {signal}) =>
     new Promise((resolve) => calls.push({request, signal, answer: resolve}))
+
   return {transport, calls}
 }
 
@@ -51,7 +58,7 @@ function heldTransport() {
 function field(questions: JevQuestions = {readable}, overrides: Partial<LifecycleInputs> = {}) {
   const clock = fakeClock()
   const {transport, calls} = heldTransport()
-  const answers: Record<string, unknown> = {}
+  const answers: DocumentObject = {}
   const stores: string[] = []
   const lifecycle = createLifecycle(clock)
 
@@ -72,10 +79,12 @@ function field(questions: JevQuestions = {readable}, overrides: Partial<Lifecycl
     debounceMs: 500,
     ...overrides,
   }
+
   function push(changes: Partial<LifecycleInputs>) {
     inputs = {...inputs, ...changes, answers: {...answers}}
     lifecycle.update(inputs)
   }
+
   push({})
 
   return {
@@ -227,6 +236,7 @@ describe('evaluation lifecycle', () => {
         },
       },
     )
+
     f.type('A')
     f.clock.tick(500)
     f.calls[0].answer(respond(noulFixture))

@@ -11,7 +11,9 @@ import type {JevQuestions} from './questions'
 import type {JevPluginConfig} from './types'
 
 export type * from './types'
+
 export type {GatewayAnswer, GatewayQuestion, JevRequest, JevTransport} from './evaluate'
+
 export type {
   ChoiceQuestion,
   JevQuestion,
@@ -19,9 +21,13 @@ export type {
   NoulQuestion,
   ScoreQuestion,
 } from './questions'
+
 export type {ChoiceRule, RangeRule} from './kinds'
+
 export {choice, noul, score} from './questions'
+
 export {withJevAnswers} from './answers'
+
 export {JEV_NAMESPACE, type JevTranslationKey} from './i18n'
 
 declare module 'sanity' {

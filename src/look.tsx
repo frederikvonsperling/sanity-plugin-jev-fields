@@ -3,11 +3,15 @@ import {Box} from '@sanity/ui'
 export type Tone = 'critical' | 'caution' | 'positive' | 'primary' | 'default'
 
 export const NEUTRAL_COLOR = 'hsl(230 80% 66%)'
+
 export const MUTED_COLOR = 'hsl(215 12% 55%)'
+
 export const ERROR_COLOR = '#f03e2f'
+
 const TRACK_COLOR = 'var(--card-border-color)'
 
 export const clampToFraction = (value: number) => Math.min(1, Math.max(0, value))
+
 export const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
 /** Red at 0, amber in the middle, green at 1. */
@@ -17,6 +21,7 @@ export function trafficColor(fraction: number) {
 
 export function trafficTone(fraction: number): Tone {
   if (fraction < 1 / 3) return 'critical'
+
   if (fraction < 2 / 3) return 'caution'
 
   return 'positive'

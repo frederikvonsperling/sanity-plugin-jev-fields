@@ -1,9 +1,10 @@
 import {Flex, Stack, Text} from '@sanity/ui'
 import {defineField, defineType, useTranslation} from 'sanity'
 
+import {isNumber} from '../content'
 import {AnswerField} from '../context'
 import {JEV_NAMESPACE} from '../i18n'
-import {Bar, capitalize, NEUTRAL_COLOR, trafficColor, trafficTone, type Tone} from '../look'
+import {Bar, capitalize, NEUTRAL_COLOR, trafficColor, trafficTone} from '../look'
 import {TYPE_NAMES} from '../names'
 import {
   asRecordOfType,
@@ -52,7 +53,7 @@ export const score = (question: Omit<ScoreQuestion, 'type'>): ScoreQuestion => (
 })
 
 /** @public */
-export interface ScoreValue extends EvaluatedValue {
+export type ScoreValue = EvaluatedValue & {
   _type?: 'jev.score'
 
   /** Interpolated position on the scale, from 0 to `max`. */
@@ -110,7 +111,9 @@ export function getSegmentFillFractions(score: number, segmentCount: number): nu
 
 /** From the criterion the score is nearest to. */
 function getScoreColorAndTone(question: ScoreQuestion, score: number, max: number) {
-  if (question.colors === 'neutral') return {color: NEUTRAL_COLOR, tone: 'primary' as Tone}
+  if (question.colors === 'neutral') {
+    return {color: NEUTRAL_COLOR, tone: 'primary' as const}
+  }
 
   const fractionOfMax = max > 0 ? Math.round(score) / max : 0
   const goodness = question.colors === 'reverse' ? 1 - fractionOfMax : fractionOfMax
@@ -163,7 +166,7 @@ export function bindScore(question: ScoreQuestion): Kind {
         score: roundToDigits(clampedScore),
         max,
         label: getCriterionShortLabel(question.criteria[Math.round(clampedScore)]),
-        ...(typeof answer.confidence === 'number' && {
+        ...(isNumber(answer.confidence) && {
           confidence: roundToDigits(answer.confidence),
         }),
       }
@@ -172,7 +175,7 @@ export function bindScore(question: ScoreQuestion): Kind {
     readStoredValue(stored) {
       const record = asRecordOfType(stored, TYPE_NAMES.score)
 
-      if (!record || typeof record.score !== 'number' || typeof record.max !== 'number') {
+      if (!record || !isNumber(record.score) || !isNumber(record.max)) {
         return undefined
       }
 
@@ -204,7 +207,7 @@ export function bindScore(question: ScoreQuestion): Kind {
     describeRuleViolation(level, stored, title) {
       const record = asRecordOfType(stored, TYPE_NAMES.score)
 
-      if (!record || typeof record.score !== 'number') return undefined
+      if (!record || !isNumber(record.score)) return undefined
 
       const violation = describeRangeViolation(record.score, question[level], describeScorePosition)
 

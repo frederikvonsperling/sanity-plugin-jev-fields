@@ -198,6 +198,7 @@ function QuestionDetailBody({question, empty}: {question: QuestionView; empty: b
   const {t} = useTranslation(JEV_NAMESPACE)
 
   if (question.configError) return <Text size={1}>{question.configError}</Text>
+
   if (question.reading) return question.reading.body
 
   return (
@@ -211,6 +212,7 @@ function QuestionDetailAside({aside}: {aside: NonNullable<Reading['aside']>}) {
   const {t} = useTranslation(JEV_NAMESPACE)
 
   if ('badge' in aside) return <Badge tone={aside.tone}>{aside.badge}</Badge>
+
   if ('level' in aside) return <Badge tone={aside.tone}>{t(`noul.level.${aside.level}`)}</Badge>
 
   return (

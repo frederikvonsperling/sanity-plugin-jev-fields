@@ -1,7 +1,13 @@
 import type {ReactNode} from 'react'
 import {defineField} from 'sanity'
 
-import {isRecord} from '../content'
+import {
+  isDocumentObject,
+  isNumber,
+  isString,
+  type DocumentObject,
+  type DocumentValue,
+} from '../content'
 import type {GatewayAnswer, GatewayQuestion} from '../evaluate'
 import type {Tone} from '../look'
 import type {ChoiceValue} from './choice'
@@ -16,7 +22,7 @@ export interface QuestionBase {
   instructions: string
 }
 
-export interface EvaluatedValue {
+export type EvaluatedValue = {
   evaluatedAt?: string
 
   /** The model that answered, as AI Gateway names it, e.g. `typesafe-ai/jev`. */
@@ -73,13 +79,13 @@ export interface Kind {
   toStoredValue(answer: GatewayAnswer): StoredValue
 
   /** Anything that isn't a complete answer of this kind is unanswered. */
-  readStoredValue(stored: unknown): Reading | undefined
+  readStoredValue(stored: DocumentValue): Reading | undefined
 
   /**
    * How a stored answer breaks the question's `warn` or `require` rule. Nothing when the rule
    * holds, the question has no such rule, or there is no answer.
    */
-  describeRuleViolation(level: RuleLevel, stored: unknown, title: string): string | undefined
+  describeRuleViolation(level: RuleLevel, stored: DocumentValue, title: string): string | undefined
 }
 
 export const roundToDigits = (value: number, digits = 4) =>
@@ -96,13 +102,13 @@ export const evaluationFields = [
 ]
 
 export function asRecordOfType(
-  stored: unknown,
+  stored: DocumentValue,
   typeName: string,
-): Record<string, unknown> | undefined {
-  return isRecord(stored) && stored._type === typeName ? stored : undefined
+): DocumentObject | undefined {
+  return isDocumentObject(stored) && stored._type === typeName ? stored : undefined
 }
 
-export function readEvaluationFields(stored: Record<string, unknown>): EvaluatedValue {
+export function readEvaluationFields(stored: DocumentObject): EvaluatedValue {
   return {
     evaluatedAt: stringOrUndefined(stored.evaluatedAt),
     model: stringOrUndefined(stored.model),
@@ -110,9 +116,9 @@ export function readEvaluationFields(stored: Record<string, unknown>): Evaluated
   }
 }
 
-export const stringOrUndefined = (value: unknown) => (typeof value === 'string' ? value : undefined)
+export const stringOrUndefined = (value: DocumentValue) => (isString(value) ? value : undefined)
 
-export const numberOrUndefined = (value: unknown) => (typeof value === 'number' ? value : undefined)
+export const numberOrUndefined = (value: DocumentValue) => (isNumber(value) ? value : undefined)
 
 export function findRangeRuleConfigError(
   rules: Partial<Record<RuleLevel, RangeRule>>,
@@ -126,9 +132,13 @@ export function findRangeRuleConfigError(
 
     for (const bound of ['atLeast', 'atMost'] as const) {
       const value = rule[bound]
-      const isNumberInRange = typeof value === 'number' && value >= min && value <= max
 
-      if (value !== undefined && !isNumberInRange) {
+      if (value === undefined) continue
+
+      // Config from plain JavaScript can hold anything, so this also rejects non-numbers.
+      const isNumberInRange = Number.isFinite(value) && value >= min && value <= max
+
+      if (!isNumberInRange) {
         return `\`${level}.${bound}\` must be a number from ${min} to ${max}.`
       }
     }
@@ -144,6 +154,7 @@ export function describeRangeViolation(
   format: (value: number) => string,
 ): string | undefined {
   if (rule?.atLeast !== undefined && value < rule.atLeast) return `below ${format(rule.atLeast)}`
+
   if (rule?.atMost !== undefined && value > rule.atMost) return `above ${format(rule.atMost)}`
 
   return undefined

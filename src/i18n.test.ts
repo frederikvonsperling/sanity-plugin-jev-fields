@@ -11,7 +11,9 @@ const SOURCE = new URL('.', import.meta.url).pathname
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
     const path = join(dir, entry.name)
+
     if (entry.isDirectory()) return entry.name.startsWith('__') ? [] : sourceFiles(path)
+
     return /\.tsx?$/.test(entry.name) && !entry.name.includes('.test.') ? [path] : []
   })
 }
@@ -19,6 +21,7 @@ function sourceFiles(dir: string): string[] {
 describe('translations', () => {
   const code = sourceFiles(SOURCE).map((file) => readFileSync(file, 'utf8'))
   const used: string[] = []
+
   for (const text of code) {
     for (const match of text.matchAll(/\bt\('([\w.-]+)'|i18nKey="([\w.-]+)"/g)) {
       used.push(match[1] ?? match[2])

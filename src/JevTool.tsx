@@ -222,7 +222,9 @@ function KeyStatusBadge({
   const {t} = useTranslation(JEV_NAMESPACE)
 
   if (keyIsFromConfig) return <Badge tone="primary">{t('tool.key.status.config')}</Badge>
+
   if (loading) return <Badge>{t('tool.key.status.checking')}</Badge>
+
   if (storedKey) return <Badge tone="positive">{t('tool.key.status.set')}</Badge>
 
   return <Badge tone="caution">{t('tool.key.status.not-set')}</Badge>
