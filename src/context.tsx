@@ -1,9 +1,10 @@
 import {createContext, useContext, useEffect, useMemo, useState, type ReactNode} from 'react'
 import {set, type FieldProps, type Path} from 'sanity'
 
+import type {StoredValue} from './kinds'
 import type {JevPluginConfig} from './types'
 
-type AnswerWriter = (value: unknown) => void
+type AnswerWriter = (value: StoredValue) => void
 
 interface JevFormContextValue {
   config: JevPluginConfig
