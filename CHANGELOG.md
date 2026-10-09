@@ -1,5 +1,11 @@
 # sanity-plugin-jev-fields
 
+## 0.2.1
+
+### Patch Changes
+
+- be7cc2e: Questions on string, text, number, url and email fields evaluate on their own after an edit, instead of only being marked stale.
+
 ## 0.2.0
 
 ### Minor Changes
