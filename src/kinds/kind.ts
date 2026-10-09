@@ -22,13 +22,17 @@ export interface QuestionBase {
   instructions: string
 }
 
+/** Fields every stored answer has, whatever its kind. @public */
 export type EvaluatedValue = {
   evaluatedAt?: string
 
   /** The model that answered, as AI Gateway names it, e.g. `typesafe-ai/jev`. */
   model?: string
 
-  /** Fingerprint of the evaluated content and question, used to detect stale results. */
+  /**
+   * Fingerprint of the evaluated state, question and model, used to detect stale answers. Only
+   * the Studio reads it: how it is made may change, which only marks answers out of date.
+   */
   sourceHash?: string
 }
 

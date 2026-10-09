@@ -1,7 +1,7 @@
 {
   "name": "sanity-plugin-jev-fields",
   "version": "0.2.1",
-  "description": "Jev signals for Sanity Studio: AI-evaluated yes/no, score and choice answers attached to a field, from TypeSafe's Jev model through Vercel AI Gateway",
+  "description": "Jev questions for Sanity Studio: AI-evaluated yes/no, score and choice answers attached to a field, from TypeSafe's Jev model through Vercel AI Gateway",
   "keywords": [
     "ai",
     "ai-gateway",

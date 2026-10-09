@@ -12,7 +12,7 @@ A PR that changes what users get from npm (behaviour in `src/`, exports, types, 
 Questions are re-evaluated after an undo, too.
 ```
 
-- **Bump level while on 0.x:** `minor` for breaking changes and new features, `patch` for fixes. `major` releases 1.0.0, which freezes the stored answer shapes: reserve it for that deliberate release.
+- **Bump level:** `major` for breaking changes, `minor` for new features, `patch` for fixes. Breaking means anything a user must change for: a stored answer's shape or type name (frontends query them, and old content needs a migration), a removed or renamed option, export or translation key, or a higher peer range floor.
 - **Summary:** one or two sentences for plugin users, saying what changes for them. It becomes their CHANGELOG entry.
 - PRs that only touch docs, tests, CI or internals with unchanged behaviour ship without one. A bot comment on each PR shows whether it has a changeset.
 

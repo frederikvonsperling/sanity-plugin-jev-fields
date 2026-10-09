@@ -4,11 +4,17 @@ import {throwAnswerKindMismatch, type Kind} from './kind'
 import {bindNoul, noulSchemaTypes} from './noul'
 import {bindScore, scoreSchemaTypes} from './score'
 
-export type {Kind, RangeRule, Reading, RuleLevel, StoredValue} from './kind'
+export type {EvaluatedValue, Kind, RangeRule, Reading, RuleLevel, StoredValue} from './kind'
 
 export {RULE_LEVELS} from './kind'
 
-export {choice, type ChoiceRule, type ChoiceQuestion, type ChoiceValue} from './choice'
+export {
+  choice,
+  type ChoiceProbability,
+  type ChoiceRule,
+  type ChoiceQuestion,
+  type ChoiceValue,
+} from './choice'
 
 export {noul, type NoulQuestion, type NoulValue} from './noul'
 

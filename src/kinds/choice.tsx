@@ -70,7 +70,8 @@ export const choice = (question: Omit<ChoiceQuestion, 'type'>): ChoiceQuestion =
   ...question,
 })
 
-type ChoiceProbability = {
+/** One option's probability in a stored choice answer. @public */
+export type ChoiceProbability = {
   _key: string
   _type?: 'jev.choiceProbability'
   option?: string
