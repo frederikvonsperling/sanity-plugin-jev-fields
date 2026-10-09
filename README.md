@@ -2,24 +2,21 @@
 
 > Beta: expect `0.x` releases to change until the stored value shapes are frozen at `1.0.0`.
 
-Editorial checks that run while editors write. Ask a question about a field ("Is this easy to
-read?", "How well are the claims backed up?") and the answer shows up under the field, is stored
-next to it for you to query, and can warn or block publishing.
+This plugin allow you to enrich fields in Sanity with feedback from the Jev model from [Typesafe](https://typesafe.ai). Show a realtime scoring to the editors on things like readability, tone, trustworthiness, credibility or anything else you can think of.
 
-The questions are answered by [TypeSafe's Jev](https://typesafe.ai), a decision model that
-answers a question with a probability instead of writing text, through
-[Vercel AI Gateway](https://vercel.com/ai-gateway). Each question shows as a chip under the field
-it judges; click it for the details. There are three kinds:
+<img src="https://raw.githubusercontent.com/frederikvonsperling/sanity-plugin-jev-fields/main/docs/images/readable.png" width="612" alt="A Body field in Sanity Studio with three question chips under it: Readable 90%, Evidence 1.5/3 and Tone Casual. The Readable details are open: a High badge, 90% likely to read easily, a nearly full green bar, and the hint &quot;Short sentences, plain words, clear structure&quot;.">
+
+Jev model is utilized through Vercel AI Gateway, as Sanity studio runs in the browser and Typesafe's own SDK do not support client site request at the moment.
+
+You can also use the plugin for editorial check, by either blocking or warning the editor if a specfic score is below a defined threshold. The score is also save to the dataset, allowing you to use the data for your frontend.
+
+The plugin allows the use of all three primitives from Jev, which is:
 
 - `noul`: a yes/no question, answered with the probability that the answer is yes
 - `score`: a position on an ordered scale you define
 - `choice`: one option from a named set, with a probability for each option
 
-Questions are re-evaluated shortly after the field is edited. Opening a document never writes to it.
-
-<img src="https://raw.githubusercontent.com/frederikvonsperling/sanity-plugin-jev-fields/main/docs/images/readable.png" width="612" alt="A Body field in Sanity Studio with three question chips under it: Readable 90%, Evidence 1.5/3 and Tone Casual. The Readable details are open: a High badge, 90% likely to read easily, a nearly full green bar, and the hint &quot;Short sentences, plain words, clear structure&quot;.">
-
-## Install
+## Install (Requires Sanity v6)
 
 ```sh
 npm install sanity-plugin-jev-fields
@@ -32,9 +29,6 @@ pnpm add sanity-plugin-jev-fields
 ```sh
 yarn add sanity-plugin-jev-fields
 ```
-
-Requires Sanity Studio 6. Its peer dependencies, `react` and `react-dom` 19.2 or later and
-`styled-components` 6.1 or later, come with any Studio 6 project.
 
 ## Usage
 
@@ -94,7 +88,7 @@ defineField({
 })
 ```
 
-A question reads only the field it is attached to. Portable Text, slugs and nested objects are
+A question only reads the field it is attached to. Portable Text, slugs and nested objects are
 flattened to plain text. Each key (`readable`, `evidence`, `tone`) becomes the name of a field
 next to it that stores the answer; `withJevAnswers` adds those fields and stops with an error if a
 name is already taken. A `score` takes 2 to 10 criteria and a `choice` 2 to 255 options; see
