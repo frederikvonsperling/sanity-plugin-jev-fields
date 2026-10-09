@@ -20,11 +20,13 @@ const respond = (fixture: {status: number; response: unknown}) =>
 function fakeClock() {
   let time = Date.parse('2026-10-08T10:00:00.000Z')
   let timers: {at: number; callback: () => void}[] = []
+
   const clock: Clock & {tick: (ms: number) => void} = {
     now: () => new Date(time),
     after(ms, callback) {
       const timer = {at: time + ms, callback}
       timers.push(timer)
+
       return () => {
         timers = timers.filter((other) => other !== timer)
       }
@@ -33,17 +35,21 @@ function fakeClock() {
       time += ms
       const due = timers.filter((timer) => timer.at <= time)
       timers = timers.filter((timer) => timer.at > time)
+
       for (const timer of due) timer.callback()
     },
   }
+
   return clock
 }
 
 /** A transport whose requests stay out until a test answers them. */
 function heldTransport() {
   const calls: {request: JevRequest; signal?: AbortSignal; answer: (r: Response) => void}[] = []
+
   const transport: JevTransport = (request, {signal}) =>
     new Promise((resolve) => calls.push({request, signal, answer: resolve}))
+
   return {transport, calls}
 }
 
@@ -72,10 +78,12 @@ function field(questions: JevQuestions = {readable}, overrides: Partial<Lifecycl
     debounceMs: 500,
     ...overrides,
   }
+
   function push(changes: Partial<LifecycleInputs>) {
     inputs = {...inputs, ...changes, answers: {...answers}}
     lifecycle.update(inputs)
   }
+
   push({})
 
   return {
@@ -227,6 +235,7 @@ describe('evaluation lifecycle', () => {
         },
       },
     )
+
     f.type('A')
     f.clock.tick(500)
     f.calls[0].answer(respond(noulFixture))

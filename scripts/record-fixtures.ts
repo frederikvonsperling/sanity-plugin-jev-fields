@@ -3,9 +3,11 @@
 import {existsSync, mkdirSync, writeFileSync} from 'node:fs'
 
 const rootEnv = new URL('../.env', import.meta.url)
+
 const outDir = new URL('../src/__fixtures__/gateway/', import.meta.url)
 
 const ENDPOINT = 'https://ai-gateway.vercel.sh/v1/evaluate'
+
 const MODEL = process.env.JEV_MODEL ?? 'typesafe-ai/jev'
 
 if (existsSync(rootEnv)) {

@@ -26,12 +26,16 @@ const respond = (status: number, body: unknown, headers?: Record<string, string>
 /** A transport that replays the given responses in order and records each request. */
 function replay(...responses: Response[]) {
   const requests: JevRequest[] = []
+
   const transport = vi.fn<JevTransport>(async (request) => {
     requests.push(request)
     const next = responses.shift()
+
     if (!next) throw new Error('No more responses')
+
     return next
   })
+
   return {transport, requests}
 }
 
@@ -151,6 +155,7 @@ describe('createGatewayTransport', () => {
   it('posts the request to the Gateway with the API key', async () => {
     const fetch = vi.fn(async () => respond(200, {}))
     vi.stubGlobal('fetch', fetch)
+
     const request: JevRequest = {
       model: 'typesafe-ai/jev',
       state: 'Some text',

@@ -1,7 +1,9 @@
 /** Flattens a field's value into the plain text Jev evaluates. */
 export function flattenToText(value: unknown): string {
   if (value === null || value === undefined) return ''
+
   if (typeof value === 'string') return value
+
   if (typeof value === 'number' || typeof value === 'boolean') return String(value)
 
   if (Array.isArray(value)) {
@@ -16,6 +18,7 @@ export function flattenToText(value: unknown): string {
 
   if (isRecord(value)) {
     if (isPortableTextBlock(value)) return value.children.map((child) => child.text ?? '').join('')
+
     if (value._type === 'slug') return flattenToText(value.current)
 
     return Object.entries(value)

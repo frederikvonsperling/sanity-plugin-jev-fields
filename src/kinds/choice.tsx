@@ -42,6 +42,7 @@ function findChoiceConfigError(question: ChoiceQuestion): string | undefined {
   const options = Object.keys(question.criteria ?? {})
 
   if (options.length < 2) return 'A choice question needs at least two options.'
+
   if (options.length > 255) return 'A choice question allows at most 255 options.'
 
   for (const level of RULE_LEVELS) {
@@ -192,6 +193,7 @@ export function bindChoice(question: ChoiceQuestion): Kind {
       const rule = question[level]
 
       if (!record || typeof record.choice !== 'string' || !rule?.oneOf) return undefined
+
       if (rule.oneOf.includes(record.choice)) return undefined
 
       const allowedOptions = rule.oneOf.map((option) => `"${option}"`).join(' or ')

@@ -7,6 +7,7 @@ import type {JevPluginConfig} from './types'
 
 // Same document shape as @sanity/studio-secrets, so keys stored by either keep working.
 const SECRETS_DOCUMENT_ID = 'secrets.jev'
+
 const SECRETS_DOCUMENT_TYPE = 'pluginSecrets'
 
 interface StoredKey {

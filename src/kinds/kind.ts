@@ -144,6 +144,7 @@ export function describeRangeViolation(
   format: (value: number) => string,
 ): string | undefined {
   if (rule?.atLeast !== undefined && value < rule.atLeast) return `below ${format(rule.atLeast)}`
+
   if (rule?.atMost !== undefined && value > rule.atMost) return `above ${format(rule.atMost)}`
 
   return undefined

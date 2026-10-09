@@ -208,6 +208,7 @@ export function createLifecycle(clock: Clock = realClock): Lifecycle {
     }
 
     const canRunChanged = previous && canRun(next) !== canRun(previous)
+
     const answersChanged =
       previous && boundQuestions.some(({key}) => next.answers[key] !== previous.answers[key])
 

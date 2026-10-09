@@ -39,6 +39,7 @@ interface UseQuestionsArgs {
 
 function getSetupStatus(hasTransport: boolean, keySource: KeySource): SetupStatus {
   if (hasTransport) return 'ready'
+
   if (keySource.from === 'secrets' && keySource.loading) return 'loading'
 
   return 'missing'
@@ -51,6 +52,7 @@ export function useQuestions({questions, path, state, readOnly}: UseQuestionsArg
 
   const keySource = useKeySource(config)
   const {apiKey} = keySource
+
   const transport = useMemo(
     () => resolveTransport({transport: config.transport, endpoint: config.endpoint}, apiKey),
     [config.transport, config.endpoint, apiKey],

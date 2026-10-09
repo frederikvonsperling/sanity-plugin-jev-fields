@@ -5,9 +5,13 @@ import {bindNoul, noulSchemaTypes} from './noul'
 import {bindScore, scoreSchemaTypes} from './score'
 
 export type {Kind, RangeRule, Reading, RuleLevel, StoredValue} from './kind'
+
 export {RULE_LEVELS} from './kind'
+
 export {choice, type ChoiceRule, type ChoiceQuestion, type ChoiceValue} from './choice'
+
 export {noul, type NoulQuestion, type NoulValue} from './noul'
+
 export {score, type ScoreQuestion, type ScoreValue} from './score'
 
 /** Where every kind stores its answers. */

@@ -1,14 +1,19 @@
 export const DEFAULT_MODEL = 'typesafe-ai/jev'
+
 export const DEFAULT_ENDPOINT = 'https://ai-gateway.vercel.sh/v1/evaluate'
+
 export const DEFAULT_TAGS = ['feature:jev-fields']
 
 // AI Gateway rejects requests with more than 10 tags or tags outside 1–64 characters.
 const MAX_TAGS = 10
+
 const MAX_TAG_LENGTH = 64
 
 // Overloaded or rate limited: worth retrying. Everything else fails straight away.
 const RETRY_STATUSES = new Set([429, 502, 503, 504, 529])
+
 const DEFAULT_RETRY_DELAYS = [500, 1000, 2000]
+
 const MAX_RETRY_AFTER_MS = 10_000
 
 /** @public */
@@ -82,6 +87,7 @@ export function resolveTransport(
   apiKey: string | undefined,
 ): JevTransport | undefined {
   if (config.transport) return config.transport
+
   if (apiKey) return createGatewayTransport(apiKey, config.endpoint)
 
   return undefined

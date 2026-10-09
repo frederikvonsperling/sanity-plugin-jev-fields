@@ -13,7 +13,9 @@ const answerOf = (fixture: {response: {answers: {q: unknown}}}) =>
   fixture.response.answers.q as GatewayAnswer
 
 const readable = noul({instructions: 'Easy?', true: 'Yes', false: 'No', label: 'likely'})
+
 const evidence = score({instructions: 'Rate', criteria: ['none: a', 'some: b', 'all: c']})
+
 const tone = choice({instructions: 'Tone?', criteria: {formal: 'Reserved', casual: 'Relaxed'}})
 
 describe('questions', () => {
@@ -89,11 +91,13 @@ describe('stored answers', () => {
     const kind = bindQuestionToKind(
       choice({instructions: 'x', criteria: {'a b': 'first', 'a_b': 'second'}}),
     )
+
     const value = kind.toStoredValue({
       type: 'choice',
       choice: 'a_b',
       probabilities: {'a b': 0.25, 'a_b': 0.75},
     })
+
     expect(value).toMatchObject({_type: 'jev.choice', choice: 'a_b', confidence: 0.75})
     expect(value).toHaveProperty('probabilities', [
       {_key: 'option-0', _type: 'jev.choiceProbability', option: 'a b', probability: 0.25},
@@ -128,25 +132,31 @@ describe('stored answers', () => {
     (_name, question, answer) => {
       const kind = bindQuestionToKind(question)
       const stored = kind.toStoredValue(answer)
+
       const fieldsOf = (name: string) => {
         const type = KIND_SCHEMA_TYPES.find((other) => other.name === name)
+
         return type && 'fields' in type ? type.fields.map((field) => field.name) : []
       }
 
       const fields = fieldsOf(kind.typeName)
       expect(fields).toEqual(expect.arrayContaining(['evaluatedAt', 'model', 'sourceHash']))
+
       for (const [key, value] of Object.entries(stored)) {
         if (key === '_type') continue
         expect(fields).toContain(key)
+
         if (Array.isArray(value)) {
           for (const entry of value) {
             const member = fieldsOf(entry._type)
+
             for (const memberKey of Object.keys(entry)) {
               if (!memberKey.startsWith('_')) expect(member).toContain(memberKey)
             }
           }
         }
       }
+
       expect(kind.readStoredValue({...stored, sourceHash: 'h'})?.value).toEqual({
         ...stored,
         sourceHash: 'h',
@@ -169,6 +179,7 @@ describe('reading stored answers', () => {
       _type: 'jev.noul',
       probability: 0.2,
     })
+
     expect(reading?.chip.text).toBe('20%')
     expect(reading?.tone).toBe('critical')
     expect(reading?.aside).toEqual({level: 'low', tone: 'critical'})
@@ -185,6 +196,7 @@ describe('reading stored answers', () => {
       max: 2,
       label: 'none',
     })
+
     expect(reading?.chip.text).toBe('0.2/2')
     expect(reading?.aside).toEqual({badge: 'None', tone: 'critical'})
     expect(reading?.tone).toBe('critical')
@@ -202,6 +214,7 @@ describe('reading stored answers', () => {
       choice: 'casual',
       probabilities: [],
     })
+
     expect(reading?.chip.text).toBe('Casual')
     expect(reading?.aside).toEqual({note: 'Relaxed'})
     expect(reading?.tone).toBe('default')
