@@ -1,5 +1,15 @@
 # sanity-plugin-jev-fields
 
+## 1.0.0
+
+### Major Changes
+
+- 1ee1a27: First stable release. Stored answers (`jev.noul`, `jev.score`, `jev.choice` and their fields), the plugin and question options, and the translation keys now only change in a major release.
+
+### Minor Changes
+
+- 1ee1a27: `ChoiceProbability` and `EvaluatedValue`, used by the stored value types, are now exported.
+
 ## 0.2.1
 
 ### Patch Changes
