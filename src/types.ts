@@ -1,5 +1,6 @@
 import type {JevTransport} from './evaluate'
 
+/** Options for `jev()`. All are optional. @public */
 export interface JevPluginConfig {
   /** Vercel AI Gateway key. Anything set here is bundled into the Studio's JavaScript. */
   apiKey?: string
@@ -26,4 +27,4 @@ export interface JevPluginConfig {
   tags?: string[]
 }
 
-export type {ChoiceValue, NoulValue, ScoreValue} from './kinds'
+export type {ChoiceProbability, ChoiceValue, EvaluatedValue, NoulValue, ScoreValue} from './kinds'

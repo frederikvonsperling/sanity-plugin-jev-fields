@@ -1,3 +1,3 @@
 # Changesets
 
-Run `pnpm changeset` in a PR that changes the published plugin, and describe the change for the CHANGELOG. Stay on `0.x` until the stored value shapes are frozen; `1.0.0` makes them a contract.
+Run `pnpm changeset` in a PR that changes the published plugin, and describe the change for the CHANGELOG. Stored value shapes are a contract with every frontend: changing one is a major release. [AGENTS.md](../AGENTS.md) lists the bump levels.

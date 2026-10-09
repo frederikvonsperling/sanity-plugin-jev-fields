@@ -69,7 +69,8 @@ export const choice = (question: Omit<ChoiceQuestion, 'type'>): ChoiceQuestion =
   ...question,
 })
 
-interface ChoiceProbability {
+/** One option's probability in a stored choice answer. @public */
+export interface ChoiceProbability {
   _key: string
   _type?: 'jev.choiceProbability'
   option?: string

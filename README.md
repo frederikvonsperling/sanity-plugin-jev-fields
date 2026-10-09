@@ -1,16 +1,14 @@
 # sanity-plugin-jev-fields
 
-> Beta: expect `0.x` releases to change until the stored value shapes are frozen at `1.0.0`.
-
-This plugin allow you to enrich fields in Sanity with feedback from the Jev model from [Typesafe](https://typesafe.ai). Show a realtime scoring to the editors on things like readability, tone, trustworthiness, credibility or anything else you can think of.
+This plugin allows you to enrich fields in Sanity with feedback from the Jev model from [TypeSafe](https://typesafe.ai). Show editors a real-time score for things like readability, tone, trustworthiness, credibility or anything else you can think of.
 
 <img src="https://raw.githubusercontent.com/frederikvonsperling/sanity-plugin-jev-fields/main/docs/images/readable.png" width="612" alt="A Body field in Sanity Studio with three question chips under it: Readable 90%, Evidence 1.5/3 and Tone Casual. The Readable details are open: a High badge, 90% likely to read easily, a nearly full green bar, and the hint &quot;Short sentences, plain words, clear structure&quot;.">
 
-Jev model is utilized through Vercel AI Gateway, as Sanity studio runs in the browser and Typesafe's own SDK do not support client site request at the moment.
+The Jev model is reached through Vercel AI Gateway, as Sanity Studio runs in the browser and TypeSafe's own API doesn't accept requests from the browser at the moment.
 
-You can also use the plugin for editorial check, by either blocking or warning the editor if a specfic score is below a defined threshold. The score is also save to the dataset, allowing you to use the data for your frontend.
+You can also use the plugin for editorial checks, by either warning the editor or blocking publishing when an answer is below a threshold you define. The answers are also saved to the dataset, so you can use them in your frontend.
 
-The plugin allows the use of all three primitives from Jev, which is:
+The plugin supports all three of Jev's primitives:
 
 - `noul`: a yes/no question, answered with the probability that the answer is yes
 - `score`: a position on an ordered scale you define
@@ -176,8 +174,9 @@ When more than one is set, `transport` wins over `apiKey`, and `apiKey` over the
 ```
 
 Every value also stores `evaluatedAt`, `model` (e.g. `typesafe-ai/jev`) and a `sourceHash` the
-Studio uses to show when a value is out of date. The types `NoulValue`, `ScoreValue` and
-`ChoiceValue` describe the full shapes.
+Studio uses to show when a value is out of date. `sourceHash` is internal: how it is made may
+change in any release, which only marks stored values out of date until they are evaluated again.
+The types `NoulValue`, `ScoreValue` and `ChoiceValue` describe the full shapes.
 
 ## Translations
 
