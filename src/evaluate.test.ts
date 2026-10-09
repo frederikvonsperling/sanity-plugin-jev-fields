@@ -7,7 +7,7 @@ import noul from './__fixtures__/gateway/noul.json'
 import score from './__fixtures__/gateway/score.json'
 import {
   evaluateQuestion,
-  gatewayTransport,
+  createGatewayTransport,
   JevError,
   type GatewayQuestion,
   type JevRequest,
@@ -145,7 +145,7 @@ describe('evaluateQuestion retries', () => {
   })
 })
 
-describe('gatewayTransport', () => {
+describe('createGatewayTransport', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it('posts the request to the Gateway with the API key', async () => {
@@ -160,7 +160,7 @@ describe('gatewayTransport', () => {
       providerOptions: {gateway: {tags: []}},
     }
 
-    await gatewayTransport('secret-key')(request, {})
+    await createGatewayTransport('secret-key')(request, {})
 
     expect(fetch).toHaveBeenCalledWith('https://ai-gateway.vercel.sh/v1/evaluate', {
       method: 'POST',

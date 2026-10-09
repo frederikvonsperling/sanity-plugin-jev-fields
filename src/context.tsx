@@ -3,17 +3,18 @@ import {set, type FieldProps, type Path} from 'sanity'
 
 import type {JevPluginConfig} from './types'
 
-type Write = (value: unknown) => void
+type AnswerWriter = (value: unknown) => void
 
-interface JevFormContext {
+interface JevFormContextValue {
   config: JevPluginConfig
-  /** Writers for answer fields, by path. Each answer field registers its own `onChange`. */
-  writers: Map<string, Write>
+
+  /** By path. Each answer field registers its own `onChange` as its writer. */
+  answerWriters: Map<string, AnswerWriter>
 }
 
-const Context = createContext<JevFormContext | null>(null)
+const JevFormContext = createContext<JevFormContextValue | null>(null)
 
-export const pathKey = (path: Path) => JSON.stringify(path)
+export const toPathKey = (path: Path) => JSON.stringify(path)
 
 /** Wraps a document form, so attached fields can reach the plugin config and answer fields. */
 export function JevFormProvider({
@@ -23,14 +24,17 @@ export function JevFormProvider({
   config: JevPluginConfig
   children: ReactNode
 }) {
-  const [writers] = useState(() => new Map<string, Write>())
-  const value = useMemo(() => ({config, writers}), [config, writers])
-  return <Context.Provider value={value}>{children}</Context.Provider>
+  const [answerWriters] = useState(() => new Map<string, AnswerWriter>())
+  const value = useMemo(() => ({config, answerWriters}), [config, answerWriters])
+
+  return <JevFormContext.Provider value={value}>{children}</JevFormContext.Provider>
 }
 
-export function useJevForm(): JevFormContext {
-  const context = useContext(Context)
+export function useJevForm(): JevFormContextValue {
+  const context = useContext(JevFormContext)
+
   if (!context) throw new Error('Jev questions need the jev() plugin in sanity.config.')
+
   return context
 }
 
@@ -39,14 +43,17 @@ export function useJevForm(): JevFormContext {
  * registers the field's own `onChange`, so the attached field can store answers through it.
  */
 export function AnswerField(props: FieldProps) {
-  const {writers} = useJevForm()
-  const key = pathKey(props.path)
+  const {answerWriters} = useJevForm()
+  const pathKey = toPathKey(props.path)
   const onChange = props.inputProps.onChange
+
   useEffect(() => {
-    writers.set(key, (value) => onChange(set(value)))
+    answerWriters.set(pathKey, (value) => onChange(set(value)))
+
     return () => {
-      writers.delete(key)
+      answerWriters.delete(pathKey)
     }
-  }, [writers, key, onChange])
+  }, [answerWriters, pathKey, onChange])
+
   return null
 }

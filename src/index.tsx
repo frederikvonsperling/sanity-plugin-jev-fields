@@ -1,7 +1,7 @@
 import {SparklesIcon} from '@sanity/icons/Sparkles'
 import {definePlugin} from 'sanity'
 
-import {questionsOf} from './answers'
+import {getQuestionsFromDefinition} from './answers'
 import {AttachedInput} from './AttachedInput'
 import {JevFormProvider} from './context'
 import {jevLocaleBundle} from './i18n'
@@ -40,19 +40,16 @@ declare module 'sanity' {
 export const jev = definePlugin<JevPluginConfig | void>((config) => {
   const pluginConfig: JevPluginConfig = config ?? {}
 
+  const jevTool = {
+    name: 'jev',
+    title: 'Jev',
+    icon: SparklesIcon,
+    component: () => <JevTool config={pluginConfig} />,
+  }
+
   return {
     name: 'jev',
-    tools:
-      pluginConfig.tool === false
-        ? []
-        : [
-            {
-              name: 'jev',
-              title: 'Jev',
-              icon: SparklesIcon,
-              component: () => <JevTool config={pluginConfig} />,
-            },
-          ],
+    tools: pluginConfig.tool === false ? [] : [jevTool],
     form: {
       components: {
         input: (props) => {
@@ -63,12 +60,12 @@ export const jev = definePlugin<JevPluginConfig | void>((config) => {
               <JevFormProvider config={pluginConfig}>{props.renderDefault(props)}</JevFormProvider>
             )
           }
-          const questions = questionsOf(props.schemaType)
-          return questions ? (
-            <AttachedInput {...props} questions={questions} />
-          ) : (
-            props.renderDefault(props)
-          )
+
+          const questions = getQuestionsFromDefinition(props.schemaType)
+
+          if (!questions) return props.renderDefault(props)
+
+          return <AttachedInput {...props} questions={questions} />
         },
       },
     },
