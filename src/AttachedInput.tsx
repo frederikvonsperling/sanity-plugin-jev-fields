@@ -29,7 +29,19 @@ export function AttachedInput({questions, ...props}: InputProps & {questions: Je
     jev.localEdit()
     parentOnChange(patch)
   }
+  // String, text, number, url and email inputs edit through their element's own onChange, which
+  // patches the form directly and never calls `onChange` above.
   const inputProps: InputProps = {...props, onChange}
+  if ('elementProps' in inputProps && 'onChange' in inputProps.elementProps) {
+    const elementProps = inputProps.elementProps
+    inputProps.elementProps = {
+      ...elementProps,
+      onChange: (event) => {
+        jev.localEdit()
+        elementProps.onChange(event)
+      },
+    }
+  }
 
   const [selected, setSelected] = useState<string | null>(null)
   const [keyDialogOpen, setKeyDialogOpen] = useState(false)
