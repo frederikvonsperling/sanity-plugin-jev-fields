@@ -9,42 +9,52 @@ import {
 import {useFormValue, type Path} from 'sanity'
 
 import {isRecord} from './content'
-import {pathKey, useJevForm} from './context'
-import {DEFAULT_MODEL, DEFAULT_TAGS, gatewayTransport} from './evaluate'
+import {toPathKey, useJevForm} from './context'
+import {DEFAULT_MODEL, DEFAULT_TAGS, resolveTransport} from './evaluate'
 import type {StoredValue} from './kinds'
 import {createLifecycle} from './lifecycle'
 import type {JevQuestions} from './questions'
-import {useKeySource} from './secrets'
+import {useKeySource, type KeySource} from './secrets'
 
 export type {QuestionView} from './lifecycle'
 
+/** Whether there is a way to reach the Gateway yet. */
+export type SetupStatus = 'ready' | 'loading' | 'missing'
+
 const NO_ANSWERS: Record<string, unknown> = {}
 
-interface Args {
+const DEFAULT_DEBOUNCE_MS = 500
+
+interface UseQuestionsArgs {
   questions: JevQuestions
+
   /** Path of the attached field. Answers are stored next to it. */
   path: Path
+
   /** The attached field's value, flattened to text. */
   state: string
+
   readOnly: boolean
 }
 
+function getSetupStatus(hasTransport: boolean, keySource: KeySource): SetupStatus {
+  if (hasTransport) return 'ready'
+  if (keySource.from === 'secrets' && keySource.loading) return 'loading'
+
+  return 'missing'
+}
+
 /** Connects the Evaluation lifecycle of one attached field to the Studio's form. */
-export function useQuestions({questions, path, state, readOnly}: Args) {
-  const {config, writers} = useJevForm()
+export function useQuestions({questions, path, state, readOnly}: UseQuestionsArgs) {
+  const {config, answerWriters} = useJevForm()
   const parentPath = useMemo(() => path.slice(0, -1), [path])
 
   const keySource = useKeySource(config)
-  const apiKey = keySource.apiKey
+  const {apiKey} = keySource
   const transport = useMemo(
-    () => config.transport ?? (apiKey ? gatewayTransport(apiKey, config.endpoint) : undefined),
-    [config.transport, apiKey, config.endpoint],
+    () => resolveTransport({transport: config.transport, endpoint: config.endpoint}, apiKey),
+    [config.transport, config.endpoint, apiKey],
   )
-  const setup: 'ready' | 'loading' | 'missing' = transport
-    ? 'ready'
-    : keySource.from === 'secrets' && keySource.loading
-      ? 'loading'
-      : 'missing'
 
   const parent = useFormValue(parentPath)
   const documentType = useFormValue(['_type'])
@@ -52,16 +62,18 @@ export function useQuestions({questions, path, state, readOnly}: Args) {
   // Each answer is stored next to the attached field, in the field named after its question.
   const store = useCallback(
     (key: string, value: StoredValue) => {
-      const write = writers.get(pathKey([...parentPath, key]))
-      if (!write) {
+      const writeAnswer = answerWriters.get(toPathKey([...parentPath, key]))
+
+      if (!writeAnswer) {
         throw new Error(
           `There is no "${key}" field to store this answer in. Wrap your schema ` +
             'types with withJevAnswers() in sanity.config.',
         )
       }
-      write(value)
+
+      writeAnswer(value)
     },
-    [writers, parentPath],
+    [answerWriters, parentPath],
   )
 
   // Array items have keyed path segments; collapse them so the tag names the field, not the item.
@@ -74,6 +86,7 @@ export function useQuestions({questions, path, state, readOnly}: Args) {
   )
 
   const [lifecycle] = useState(() => createLifecycle())
+
   useLayoutEffect(() => {
     lifecycle.update({
       questions,
@@ -85,19 +98,21 @@ export function useQuestions({questions, path, state, readOnly}: Args) {
       tags: config.tags ?? DEFAULT_TAGS,
       tagPath,
       readOnly,
-      debounceMs: config.debounceMs ?? 500,
+      debounceMs: config.debounceMs ?? DEFAULT_DEBOUNCE_MS,
     })
   })
+
   useEffect(() => () => lifecycle.dispose(), [lifecycle])
+
   const snapshot = useSyncExternalStore(lifecycle.subscribe, lifecycle.getSnapshot)
 
   return {
     ...snapshot,
-    setup,
-    /** The key is stored with Studio secrets, so editors can set and change it here. */
-    keyInSecrets: keySource.from === 'secrets',
-    run: (key: string) => lifecycle.run([key]),
-    runAll: () => lifecycle.run(),
+    setupStatus: getSetupStatus(!!transport, keySource),
+    /** Editors can set and change the key here, since it is stored with Studio secrets. */
+    isKeyStoredInSecrets: keySource.from === 'secrets',
+    evaluateNow: (key: string) => lifecycle.run([key]),
+    evaluateAllNow: () => lifecycle.run(),
     localEdit: lifecycle.localEdit,
   }
 }
