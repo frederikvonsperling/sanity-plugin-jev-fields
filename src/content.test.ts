@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 
-import {estimateTokens, fingerprint, nearTokenLimit, toText} from './content'
+import {estimateTokenCount, fingerprint, isNearTokenLimit, flattenToText} from './content'
 
 const block = (text: string) => ({
   _type: 'block',
@@ -8,23 +8,23 @@ const block = (text: string) => ({
   children: [{_type: 'span', _key: 's', text}],
 })
 
-describe('toText', () => {
+describe('flattenToText', () => {
   it('turns Portable Text into paragraphs', () => {
-    expect(toText([block('First.'), block('Second.')])).toBe('First.\n\nSecond.')
+    expect(flattenToText([block('First.'), block('Second.')])).toBe('First.\n\nSecond.')
   })
 
   it('reads strings, numbers, slugs and nested objects, skipping system keys', () => {
-    expect(toText('Plain')).toBe('Plain')
-    expect(toText(42)).toBe('42')
-    expect(toText({_type: 'slug', current: 'my-post'})).toBe('my-post')
-    expect(toText({_type: 'seo', _key: 'k', title: 'A', description: 'B'})).toBe('A\nB')
-    expect(toText(['one', '', 'two'])).toBe('one\ntwo')
+    expect(flattenToText('Plain')).toBe('Plain')
+    expect(flattenToText(42)).toBe('42')
+    expect(flattenToText({_type: 'slug', current: 'my-post'})).toBe('my-post')
+    expect(flattenToText({_type: 'seo', _key: 'k', title: 'A', description: 'B'})).toBe('A\nB')
+    expect(flattenToText(['one', '', 'two'])).toBe('one\ntwo')
   })
 
   it('treats missing values as empty', () => {
-    expect(toText(undefined)).toBe('')
-    expect(toText(null)).toBe('')
-    expect(toText([])).toBe('')
+    expect(flattenToText(undefined)).toBe('')
+    expect(flattenToText(null)).toBe('')
+    expect(flattenToText([])).toBe('')
   })
 })
 
@@ -38,8 +38,8 @@ describe('fingerprint', () => {
 
 describe('token estimate', () => {
   it('counts about four characters per token and warns near the 32k limit', () => {
-    expect(estimateTokens('abcdefgh')).toBe(2)
-    expect(nearTokenLimit('x'.repeat(4 * 27_000))).toBe(false)
-    expect(nearTokenLimit('x'.repeat(4 * 29_000))).toBe(true)
+    expect(estimateTokenCount('abcdefgh')).toBe(2)
+    expect(isNearTokenLimit('x'.repeat(4 * 27_000))).toBe(false)
+    expect(isNearTokenLimit('x'.repeat(4 * 29_000))).toBe(true)
   })
 })

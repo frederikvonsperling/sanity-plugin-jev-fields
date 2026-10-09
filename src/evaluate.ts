@@ -63,7 +63,7 @@ export class JevError extends Error {
 }
 
 /** The default transport: calls AI Gateway directly from the browser with the API key. */
-export function gatewayTransport(apiKey: string, endpoint = DEFAULT_ENDPOINT): JevTransport {
+export function createGatewayTransport(apiKey: string, endpoint = DEFAULT_ENDPOINT): JevTransport {
   return (request, {signal}) =>
     fetch(endpoint, {
       method: 'POST',
@@ -76,22 +76,36 @@ export function gatewayTransport(apiKey: string, endpoint = DEFAULT_ENDPOINT): J
     })
 }
 
-interface EvaluateArgs {
+/** A `transport` in the plugin config wins; otherwise the API key, if there is one. */
+export function resolveTransport(
+  config: {transport?: JevTransport; endpoint?: string},
+  apiKey: string | undefined,
+): JevTransport | undefined {
+  if (config.transport) return config.transport
+  if (apiKey) return createGatewayTransport(apiKey, config.endpoint)
+
+  return undefined
+}
+
+interface EvaluateQuestionArgs {
   transport: JevTransport
   model: string
   state: string | Record<string, string>
   question: GatewayQuestion
   tags: string[]
   signal?: AbortSignal
+
   /** Waits before each retry of an overloaded or rate-limited request. */
   retryDelays?: number[]
 }
 
-interface EvaluateResponse {
+interface GatewayResponseBody {
   answers?: {q?: GatewayAnswer}
   model?: string
   error?: {message?: string} | string
 }
+
+type EvaluateQuestionResult = {answer: GatewayAnswer; model: string}
 
 /**
  * Asks the decision model a single typed question about the state. Resolves with the answer
@@ -105,7 +119,7 @@ export async function evaluateQuestion({
   tags,
   signal,
   retryDelays = DEFAULT_RETRY_DELAYS,
-}: EvaluateArgs): Promise<{answer: GatewayAnswer; model: string}> {
+}: EvaluateQuestionArgs): Promise<EvaluateQuestionResult> {
   const request: JevRequest = {
     model,
     state,
@@ -113,10 +127,9 @@ export async function evaluateQuestion({
     providerOptions: {gateway: {tags: normalizeTags(tags)}},
   }
 
-  const send = async (attempt: number): Promise<{answer: GatewayAnswer; model: string}> => {
+  const sendWithRetries = async (attempt: number): Promise<EvaluateQuestionResult> => {
     const response = await transport(request, {signal})
-
-    const body: EvaluateResponse = await response.json().catch(() => ({}))
+    const body: GatewayResponseBody = await response.json().catch(() => ({}))
 
     if (response.ok) {
       const answer = body.answers?.q
@@ -124,20 +137,25 @@ export async function evaluateQuestion({
       if (answer?.type !== question.type) {
         throw new JevError('unexpected', 'AI Gateway returned no answer.', response.status)
       }
+
       return {answer, model: body.model ?? model}
     }
 
-    if (RETRY_STATUSES.has(response.status) && attempt < retryDelays.length) {
-      await sleep(retryDelay(response, retryDelays[attempt]), signal)
-      return send(attempt + 1)
+    const canRetry = RETRY_STATUSES.has(response.status) && attempt < retryDelays.length
+
+    if (canRetry) {
+      await sleep(getRetryDelayMs(response, retryDelays[attempt]), signal)
+
+      return sendWithRetries(attempt + 1)
     }
-    throw toError(response.status, errorMessage(body))
+
+    throw toJevError(response.status, readGatewayErrorMessage(body))
   }
 
-  return send(0)
+  return sendWithRetries(0)
 }
 
-function toError(status: number, message: string | undefined): JevError {
+function toJevError(status: number, message: string | undefined): JevError {
   if (status === 401 || status === 403) {
     return new JevError(
       'auth',
@@ -146,6 +164,7 @@ function toError(status: number, message: string | undefined): JevError {
       message,
     )
   }
+
   if (status === 400 || status === 422) {
     return new JevError(
       'invalid',
@@ -154,28 +173,35 @@ function toError(status: number, message: string | undefined): JevError {
       message,
     )
   }
+
   if (RETRY_STATUSES.has(status)) {
     return new JevError('busy', 'AI Gateway is busy. Try again in a moment.', status, message)
   }
+
   const suffix = message ? `: ${message}` : ''
+
   return new JevError('failed', `AI Gateway responded with ${status}${suffix}`, status, message)
 }
 
-function errorMessage(body: EvaluateResponse): string | undefined {
+function readGatewayErrorMessage(body: GatewayResponseBody): string | undefined {
   return (typeof body.error === 'string' ? body.error : body.error?.message) || undefined
 }
 
 /** Honours a short `Retry-After` (in seconds) when it asks for longer than our own backoff. */
-function retryDelay(response: Response, backoff: number): number {
-  const seconds = Number(response.headers.get('retry-after'))
-  if (!Number.isFinite(seconds) || seconds <= 0) return backoff
-  return Math.min(Math.max(backoff, seconds * 1000), MAX_RETRY_AFTER_MS)
+function getRetryDelayMs(response: Response, backoffMs: number): number {
+  const retryAfterSeconds = Number(response.headers.get('retry-after'))
+
+  if (!Number.isFinite(retryAfterSeconds) || retryAfterSeconds <= 0) return backoffMs
+
+  return Math.min(Math.max(backoffMs, retryAfterSeconds * 1000), MAX_RETRY_AFTER_MS)
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(signal.reason)
+
     const timeout = setTimeout(resolve, ms)
+
     signal?.addEventListener(
       'abort',
       () => {
@@ -188,6 +214,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 export function normalizeTags(tags: string[]): string[] {
-  const cleaned = tags.map((tag) => tag.trim().slice(0, MAX_TAG_LENGTH)).filter(Boolean)
-  return [...new Set(cleaned)].slice(0, MAX_TAGS)
+  const trimmedTags = tags.map((tag) => tag.trim().slice(0, MAX_TAG_LENGTH)).filter(Boolean)
+
+  return [...new Set(trimmedTags)].slice(0, MAX_TAGS)
 }

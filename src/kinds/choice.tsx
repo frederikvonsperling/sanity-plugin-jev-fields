@@ -6,26 +6,29 @@ import {AnswerField} from '../context'
 import {Bar, capitalize, MUTED_COLOR, NEUTRAL_COLOR} from '../look'
 import {TYPE_NAMES} from '../names'
 import {
-  bookkeepingFields,
-  bookkeepingOf,
-  mismatch,
-  number,
-  round,
-  storedOf,
-  text,
+  asRecordOfType,
+  evaluationFields,
+  numberOrUndefined,
+  readEvaluationFields,
+  roundToDigits,
+  RULE_LEVELS,
+  stringOrUndefined,
+  throwAnswerKindMismatch,
   type EvaluatedValue,
   type Kind,
-  type RuleLevel,
   type QuestionBase,
 } from './kind'
 
 /** @public */
 export interface ChoiceQuestion extends QuestionBase {
   type: 'choice'
+
   /** Two to 255 options: option name → what it means. */
   criteria: Record<string, string>
+
   /** Warn unless the answer is one of these options, e.g. `{oneOf: ['formal', 'casual']}`. */
   warn?: ChoiceRule
+
   /** Block publishing unless the answer is one of these options. */
   require?: ChoiceRule
 }
@@ -35,20 +38,28 @@ export interface ChoiceRule {
   oneOf: string[]
 }
 
-/** Why a choice question can't be asked, if it can't. */
-function choiceProblem(question: ChoiceQuestion, options: string[]): string | undefined {
+function findChoiceConfigError(question: ChoiceQuestion): string | undefined {
+  const options = Object.keys(question.criteria ?? {})
+
   if (options.length < 2) return 'A choice question needs at least two options.'
   if (options.length > 255) return 'A choice question allows at most 255 options.'
-  for (const level of ['warn', 'require'] as const satisfies RuleLevel[]) {
+
+  for (const level of RULE_LEVELS) {
     const rule = question[level]
+
     if (!rule) continue
+
     if (!Array.isArray(rule.oneOf) || rule.oneOf.length === 0) {
       return `\`${level}.oneOf\` must list at least one option.`
     }
-    const unknown = rule.oneOf.find((option) => !options.includes(option))
-    if (unknown !== undefined)
-      return `\`${level}.oneOf\` names "${unknown}", which is not an option.`
+
+    const unknownOption = rule.oneOf.find((option) => !options.includes(option))
+
+    if (unknownOption !== undefined) {
+      return `\`${level}.oneOf\` names "${unknownOption}", which is not an option.`
+    }
   }
+
   return undefined
 }
 
@@ -69,8 +80,10 @@ interface ChoiceProbability {
 export interface ChoiceValue extends EvaluatedValue {
   _type?: 'jev.choice'
   choice?: string
+
   /** The model's confidence in this choice (0–1). */
   confidence?: number
+
   probabilities?: ChoiceProbability[]
 }
 
@@ -99,73 +112,91 @@ export const choiceSchemaTypes = [
         readOnly: true,
         of: [defineArrayMember({type: TYPE_NAMES.choiceProbability})],
       }),
-      ...bookkeepingFields,
+      ...evaluationFields,
     ],
   }),
 ]
 
+function readStoredProbabilities(stored: unknown): ChoiceProbability[] {
+  if (!Array.isArray(stored)) return []
+
+  return stored.filter(isRecord).map((entry) => ({
+    _key: String(entry._key),
+    _type: TYPE_NAMES.choiceProbability,
+    option: stringOrUndefined(entry.option),
+    probability: numberOrUndefined(entry.probability),
+  }))
+}
+
 export function bindChoice(question: ChoiceQuestion): Kind {
-  const criteria = question.criteria ?? {}
-  const problem = choiceProblem(question, Object.keys(criteria))
+  const configError = findChoiceConfigError(question)
+
+  const gatewayQuestion = {
+    type: 'choice',
+    instructions: question.instructions,
+    criteria: question.criteria,
+  } as const
 
   return {
     typeName: TYPE_NAMES.choice,
-    gatewayQuestion: !problem
-      ? {type: 'choice', instructions: question.instructions, criteria: question.criteria}
-      : undefined,
-    problem,
+    gatewayQuestion: configError ? undefined : gatewayQuestion,
+    configError,
 
-    toStored(answer) {
-      if (answer.type !== 'choice') return mismatch()
+    toStoredValue(answer) {
+      if (answer.type !== 'choice') return throwAnswerKindMismatch()
+
+      const confidence = answer.confidence ?? answer.probabilities[answer.choice] ?? 0
+
       return {
         _type: TYPE_NAMES.choice,
         choice: answer.choice,
-        confidence: round(answer.confidence ?? answer.probabilities[answer.choice] ?? 0),
+        confidence: roundToDigits(confidence),
         // Index keys can't collide, unlike keys derived from option names.
-        probabilities: Object.keys(criteria).map((option, index) => ({
+        probabilities: Object.keys(question.criteria).map((option, index) => ({
           _key: `option-${index}`,
           _type: TYPE_NAMES.choiceProbability,
           option,
-          probability: round(answer.probabilities[option] ?? 0),
+          probability: roundToDigits(answer.probabilities[option] ?? 0),
         })),
       }
     },
 
-    read(stored) {
-      const record = storedOf(stored, TYPE_NAMES.choice)
+    readStoredValue(stored) {
+      const record = asRecordOfType(stored, TYPE_NAMES.choice)
+
       if (!record || typeof record.choice !== 'string') return undefined
-      const probabilities = Array.isArray(record.probabilities)
-        ? record.probabilities.filter(isRecord).map((entry): ChoiceProbability => ({
-            _key: String(entry._key),
-            _type: TYPE_NAMES.choiceProbability,
-            option: text(entry.option),
-            probability: number(entry.probability),
-          }))
-        : []
-      const meaning = criteria[record.choice]
+
+      const probabilities = readStoredProbabilities(record.probabilities)
+      // `criteria` can be missing from a misconfigured question that still has a stored answer.
+      const meaningOfChoice = question.criteria?.[record.choice]
+
       return {
         value: {
-          ...bookkeepingOf(record),
+          ...readEvaluationFields(record),
           _type: TYPE_NAMES.choice,
           choice: record.choice,
-          confidence: number(record.confidence),
+          confidence: numberOrUndefined(record.confidence),
           probabilities,
         },
         chip: {text: capitalize(record.choice), color: NEUTRAL_COLOR},
         tone: 'default',
-        aside: meaning ? {note: meaning} : undefined,
+        aside: meaningOfChoice ? {note: meaningOfChoice} : undefined,
         body: (
           <ChoiceBody question={question} choice={record.choice} probabilities={probabilities} />
         ),
       }
     },
 
-    check(level, stored, title) {
-      const record = storedOf(stored, TYPE_NAMES.choice)
+    describeRuleViolation(level, stored, title) {
+      const record = asRecordOfType(stored, TYPE_NAMES.choice)
       const rule = question[level]
+
       if (!record || typeof record.choice !== 'string' || !rule?.oneOf) return undefined
       if (rule.oneOf.includes(record.choice)) return undefined
-      return `${title} is "${record.choice}", not ${rule.oneOf.map((option) => `"${option}"`).join(' or ')}.`
+
+      const allowedOptions = rule.oneOf.map((option) => `"${option}"`).join(' or ')
+
+      return `${title} is "${record.choice}", not ${allowedOptions}.`
     },
   }
 }
@@ -180,27 +211,30 @@ function ChoiceBody({
   probabilities: ChoiceProbability[]
 }) {
   const options = Object.keys(question.criteria)
-  const nameWidth = `${Math.max(...options.map((name) => name.length), 4) + 2}ch`
+  const longestOptionLength = Math.max(...options.map((option) => option.length), 4)
+  const optionColumnWidth = `${longestOptionLength + 2}ch`
+
   return (
     <Stack gap={3}>
       {options.map((option) => {
         const probability = probabilities.find((entry) => entry.option === option)?.probability ?? 0
-        const winner = option === choice
+        const isChosen = option === choice
         const percent = Math.round(probability * 100)
+
         return (
           <Flex key={option} align="center" gap={3}>
-            <Box style={{width: nameWidth}}>
-              <Text size={1} weight={winner ? 'semibold' : 'regular'} muted={!winner}>
+            <Box style={{width: optionColumnWidth}}>
+              <Text size={1} weight={isChosen ? 'semibold' : 'regular'} muted={!isChosen}>
                 {capitalize(option)}
               </Text>
             </Box>
             <Bar
               fraction={probability}
-              color={winner ? NEUTRAL_COLOR : MUTED_COLOR}
+              color={isChosen ? NEUTRAL_COLOR : MUTED_COLOR}
               label={`${option}: ${percent}%`}
             />
             <Box style={{minWidth: '4ch', textAlign: 'right'}}>
-              <Text size={1} muted={!winner}>
+              <Text size={1} muted={!isChosen}>
                 {percent}%
               </Text>
             </Box>

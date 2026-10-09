@@ -4,14 +4,15 @@ import {useTranslation} from 'sanity'
 import {keyframes, styled} from 'styled-components'
 
 import {JEV_NAMESPACE} from './i18n'
+import type {Reading} from './kinds'
 import type {QuestionError} from './lifecycle'
-import {MUTED_COLOR} from './look'
-import type {QuestionView} from './useQuestions'
+import {ERROR_COLOR, MUTED_COLOR} from './look'
+import type {QuestionView, SetupStatus} from './useQuestions'
 
 export type Translate = ReturnType<typeof useTranslation>['t']
 
-/** An evaluation error in the Studio's language; errors from outside the Gateway as they are. */
-export function errorText(t: Translate, error: QuestionError): string {
+/** Errors from outside the Gateway are shown as they are. */
+export function translateQuestionError(t: Translate, error: QuestionError): string {
   switch (error.kind) {
     case 'auth':
       return t('error.auth')
@@ -30,15 +31,15 @@ export function errorText(t: Translate, error: QuestionError): string {
   }
 }
 
-const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+const MONOSPACE_FONT = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 
 const pulse = keyframes`
   0%, 100% { opacity: 1; }
   50% { opacity: 0.25; }
 `
 
-/** The chip's status dot: 6px, pulsing while the question evaluates so the chip never shifts. */
-const Dot = styled.span<{$color: string; $pulse: boolean}>`
+/** 6px, pulsing while the question evaluates so the chip never shifts. */
+const ChipStatusDot = styled.span<{$color: string; $pulse: boolean}>`
   flex: none;
   width: 6px;
   height: 6px;
@@ -47,7 +48,7 @@ const Dot = styled.span<{$color: string; $pulse: boolean}>`
   animation: ${({$pulse}) => ($pulse ? pulse : 'none')} 1s ease-in-out infinite;
 `
 
-function Chip({
+function QuestionChip({
   question,
   selected,
   onSelect,
@@ -58,7 +59,8 @@ function Chip({
 }) {
   const {t} = useTranslation(JEV_NAMESPACE)
   const {text, color} = question.reading?.chip ?? {text: t('chip.empty'), color: undefined}
-  const failed = !!question.error || !!question.problem
+  const hasError = !!question.error || !!question.configError
+
   return (
     <Card
       as="button"
@@ -80,9 +82,9 @@ function Chip({
       }}
     >
       <Flex align="center" gap={2}>
-        <Dot
+        <ChipStatusDot
           aria-hidden
-          $color={failed ? '#f03e2f' : (color ?? MUTED_COLOR)}
+          $color={hasError ? ERROR_COLOR : (color ?? MUTED_COLOR)}
           $pulse={question.loading}
         />
         {/* Title and value share one line of text, so they share a baseline whatever the font. */}
@@ -91,12 +93,12 @@ function Chip({
           <span
             style={{
               marginLeft: '0.6em',
-              fontFamily: MONO,
-              color: failed ? '#f03e2f' : color,
+              fontFamily: MONOSPACE_FONT,
+              color: hasError ? ERROR_COLOR : color,
               opacity: question.stale ? 0.5 : 1,
             }}
           >
-            {failed ? t('chip.error') : text}
+            {hasError ? t('chip.error') : text}
           </span>
         </Text>
       </Flex>
@@ -104,29 +106,30 @@ function Chip({
   )
 }
 
-interface StripProps {
+interface QuestionStripProps {
   questions: QuestionView[]
-  selected: string | null
+  selectedKey: string | null
   onSelect: (key: string | null) => void
-  setup: 'ready' | 'loading' | 'missing'
+  setupStatus: SetupStatus
   canRun: boolean
   loading: boolean
-  onRunAll: () => void
+  onEvaluateAll: () => void
   onSetUp: () => void
 }
 
 /** The row of question chips under an attached field. */
 export function QuestionStrip({
   questions,
-  selected,
+  selectedKey,
   onSelect,
-  setup,
+  setupStatus,
   canRun,
   loading,
-  onRunAll,
+  onEvaluateAll,
   onSetUp,
-}: StripProps) {
+}: QuestionStripProps) {
   const {t} = useTranslation(JEV_NAMESPACE)
+
   return (
     // Joins the input above: its bottom border becomes the divider between content and questions.
     <Card
@@ -141,16 +144,20 @@ export function QuestionStrip({
     >
       <Flex align="center" gap={2}>
         <Flex flex={1} align="center" gap={1} wrap="wrap">
-          {questions.map((question) => (
-            <Chip
-              key={question.key}
-              question={question}
-              selected={selected === question.key}
-              onSelect={() => onSelect(selected === question.key ? null : question.key)}
-            />
-          ))}
+          {questions.map((question) => {
+            const isSelected = selectedKey === question.key
+
+            return (
+              <QuestionChip
+                key={question.key}
+                question={question}
+                selected={isSelected}
+                onSelect={() => onSelect(isSelected ? null : question.key)}
+              />
+            )
+          })}
         </Flex>
-        {setup === 'missing' ? (
+        {setupStatus === 'missing' ? (
           <Button
             text={t('strip.set-up')}
             mode="ghost"
@@ -177,7 +184,7 @@ export function QuestionStrip({
                 title={t('strip.evaluate-all')}
                 aria-label={t('strip.evaluate-all')}
                 disabled={!canRun}
-                onClick={onRunAll}
+                onClick={onEvaluateAll}
               />
             )}
           </Flex>
@@ -187,7 +194,33 @@ export function QuestionStrip({
   )
 }
 
-interface DetailProps {
+function QuestionDetailBody({question, empty}: {question: QuestionView; empty: boolean}) {
+  const {t} = useTranslation(JEV_NAMESPACE)
+
+  if (question.configError) return <Text size={1}>{question.configError}</Text>
+  if (question.reading) return question.reading.body
+
+  return (
+    <Text size={1} muted>
+      {empty ? t('detail.empty-field') : t('detail.not-evaluated')}
+    </Text>
+  )
+}
+
+function QuestionDetailAside({aside}: {aside: NonNullable<Reading['aside']>}) {
+  const {t} = useTranslation(JEV_NAMESPACE)
+
+  if ('badge' in aside) return <Badge tone={aside.tone}>{aside.badge}</Badge>
+  if ('level' in aside) return <Badge tone={aside.tone}>{t(`noul.level.${aside.level}`)}</Badge>
+
+  return (
+    <Text size={1} muted>
+      {aside.note}
+    </Text>
+  )
+}
+
+interface QuestionDetailProps {
   question: QuestionView
   empty: boolean
   onRetry: () => void
@@ -195,35 +228,13 @@ interface DetailProps {
 }
 
 /** Expanded view of the selected chip. */
-export function QuestionDetail({question, empty, onRetry, onUpdateKey}: DetailProps) {
+export function QuestionDetail({question, empty, onRetry, onUpdateKey}: QuestionDetailProps) {
   const {t} = useTranslation(JEV_NAMESPACE)
-  const {reading} = question
-  const body = question.problem ? (
-    <Text size={1}>{question.problem}</Text>
-  ) : reading ? (
-    reading.body
-  ) : (
-    <Text size={1} muted>
-      {empty ? t('detail.empty-field') : t('detail.not-evaluated')}
-    </Text>
-  )
-  const aside = !reading?.aside ? null : 'badge' in reading.aside ? (
-    <Badge tone={reading.aside.tone}>{reading.aside.badge}</Badge>
-  ) : 'level' in reading.aside ? (
-    <Badge tone={reading.aside.tone}>{t(`noul.level.${reading.aside.level}`)}</Badge>
-  ) : (
-    <Text size={1} muted>
-      {reading.aside.note}
-    </Text>
-  )
+  const aside = question.reading?.aside
+  const tone = question.configError ? 'critical' : (question.reading?.tone ?? 'default')
 
   return (
-    <Card
-      padding={4}
-      radius={2}
-      border
-      tone={question.problem ? 'critical' : (reading?.tone ?? 'default')}
-    >
+    <Card padding={4} radius={2} border tone={tone}>
       <Stack gap={4}>
         <Flex align="center" gap={3}>
           <Box flex={1}>
@@ -231,9 +242,9 @@ export function QuestionDetail({question, empty, onRetry, onUpdateKey}: DetailPr
               {question.title}
             </Text>
           </Box>
-          {aside}
+          {aside && <QuestionDetailAside aside={aside} />}
         </Flex>
-        {body}
+        <QuestionDetailBody question={question} empty={empty} />
         {question.stale && !question.loading && (
           <Text size={0} muted>
             {t('detail.out-of-date')}
@@ -243,7 +254,7 @@ export function QuestionDetail({question, empty, onRetry, onUpdateKey}: DetailPr
           <Card padding={3} radius={2} tone="critical" border>
             <Flex align="center" gap={3} wrap="wrap">
               <Box flex={1}>
-                <Text size={1}>{errorText(t, question.error)}</Text>
+                <Text size={1}>{translateQuestionError(t, question.error)}</Text>
               </Box>
               {question.keyRejected && onUpdateKey ? (
                 <Button

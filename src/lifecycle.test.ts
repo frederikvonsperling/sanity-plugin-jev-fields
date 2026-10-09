@@ -259,7 +259,7 @@ describe('evaluation lifecycle', () => {
     f.type('A')
     f.clock.tick(1000)
     expect(f.calls).toHaveLength(0)
-    expect(f.view('broken').problem).toMatch(/instructions/)
+    expect(f.view('broken').configError).toMatch(/instructions/)
   })
 
   it('keeps its snapshot, and stays quiet, when nothing changed', () => {

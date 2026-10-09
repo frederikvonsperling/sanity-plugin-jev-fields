@@ -4,8 +4,8 @@ import choiceFixture from '../__fixtures__/gateway/choice.json'
 import noulFixture from '../__fixtures__/gateway/noul.json'
 import scoreFixture from '../__fixtures__/gateway/score.json'
 import type {GatewayAnswer} from '../evaluate'
-import {choice, KIND_SCHEMA_TYPES, kindOf, noul, score} from './index'
-import {meaningOf, segmentFills, shortLabel} from './score'
+import {choice, KIND_SCHEMA_TYPES, bindQuestionToKind, noul, score} from './index'
+import {getCriterionMeaning, getSegmentFillFractions, getCriterionShortLabel} from './score'
 
 // JSON imports lose the literal types of the recorded answers.
 const answerOf = (fixture: {response: {answers: {q: unknown}}}) =>
@@ -18,17 +18,20 @@ const tone = choice({instructions: 'Tone?', criteria: {formal: 'Reserved', casua
 
 describe('questions', () => {
   it('turns each question into the request Jev answers', () => {
-    expect(kindOf(readable).gatewayQuestion).toEqual({
+    expect(bindQuestionToKind(readable).gatewayQuestion).toEqual({
       type: 'boolean',
       instructions: 'Easy?',
       criteria: {true: 'Yes', false: 'No'},
     })
-    expect(kindOf(evidence).gatewayQuestion).toEqual({
+    expect(bindQuestionToKind(evidence).gatewayQuestion).toEqual({
       type: 'score',
       instructions: 'Rate',
       criteria: ['none: a', 'some: b', 'all: c'],
     })
-    expect(kindOf(tone).gatewayQuestion).toMatchObject({type: 'choice', criteria: tone.criteria})
+    expect(bindQuestionToKind(tone).gatewayQuestion).toMatchObject({
+      type: 'choice',
+      criteria: tone.criteria,
+    })
   })
 
   it.each([
@@ -40,46 +43,53 @@ describe('questions', () => {
       'at most ten',
     ],
     [choice({instructions: 'Tone?', criteria: {a: 'A'}}), 'at least two'],
-  ])('explains config that cannot be asked: %#', (question, problem) => {
-    const kind = kindOf(question)
+  ])('explains config that cannot be asked: %#', (question, configError) => {
+    const kind = bindQuestionToKind(question)
     expect(kind.gatewayQuestion).toBeUndefined()
-    expect(kind.problem).toContain(problem)
+    expect(kind.configError).toContain(configError)
   })
 
   it('explains an unknown question type', () => {
+    const unknownTypeQuestion = {type: 'rating', instructions: 'x'}
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config from plain JS
-    const kind = kindOf({type: 'rating', instructions: 'x'} as unknown as typeof readable)
-    expect(kind.problem).toMatch(/unknown/i)
-    expect(kind.read({_type: 'jev.noul', probability: 1})).toBeUndefined()
+    const kind = bindQuestionToKind(unknownTypeQuestion as unknown as typeof readable)
+    expect(kind.configError).toMatch(/unknown/i)
+    expect(kind.readStoredValue({_type: 'jev.noul', probability: 1})).toBeUndefined()
   })
 })
 
 describe('stored answers', () => {
   it('stores a noul answer as a rounded probability', () => {
-    expect(kindOf(readable).toStored({type: 'boolean', probability: 0.123456})).toEqual({
+    expect(
+      bindQuestionToKind(readable).toStoredValue({type: 'boolean', probability: 0.123456}),
+    ).toEqual({
       _type: 'jev.noul',
       probability: 0.1235,
     })
   })
 
   it('clamps a score to the scale and labels the nearest criterion', () => {
-    const kind = kindOf(evidence)
-    expect(kind.toStored({type: 'score', score: 1.4, probabilities: {}, confidence: 0.9})).toEqual({
+    const kind = bindQuestionToKind(evidence)
+    expect(
+      kind.toStoredValue({type: 'score', score: 1.4, probabilities: {}, confidence: 0.9}),
+    ).toEqual({
       _type: 'jev.score',
       score: 1.4,
       max: 2,
       label: 'some',
       confidence: 0.9,
     })
-    expect(kind.toStored({type: 'score', score: 7, probabilities: {}})).toMatchObject({
+    expect(kind.toStoredValue({type: 'score', score: 7, probabilities: {}})).toMatchObject({
       score: 2,
       label: 'all',
     })
   })
 
   it('stores a choice with one uniquely keyed probability per option, in config order', () => {
-    const kind = kindOf(choice({instructions: 'x', criteria: {'a b': 'first', 'a_b': 'second'}}))
-    const value = kind.toStored({
+    const kind = bindQuestionToKind(
+      choice({instructions: 'x', criteria: {'a b': 'first', 'a_b': 'second'}}),
+    )
+    const value = kind.toStoredValue({
       type: 'choice',
       choice: 'a_b',
       probabilities: {'a b': 0.25, 'a_b': 0.75},
@@ -92,7 +102,9 @@ describe('stored answers', () => {
   })
 
   it('refuses an answer to a different kind of question', () => {
-    expect(() => kindOf(evidence).toStored({type: 'boolean', probability: 0.5})).toThrow()
+    expect(() =>
+      bindQuestionToKind(evidence).toStoredValue({type: 'boolean', probability: 0.5}),
+    ).toThrow()
   })
 
   // What the plugin stores must fit the schema type it registers, or Sanity drops the field.
@@ -114,8 +126,8 @@ describe('stored answers', () => {
   ])(
     'stores a recorded %s answer in fields its schema type declares',
     (_name, question, answer) => {
-      const kind = kindOf(question)
-      const stored = kind.toStored(answer)
+      const kind = bindQuestionToKind(question)
+      const stored = kind.toStoredValue(answer)
       const fieldsOf = (name: string) => {
         const type = KIND_SCHEMA_TYPES.find((other) => other.name === name)
         return type && 'fields' in type ? type.fields.map((field) => field.name) : []
@@ -135,7 +147,10 @@ describe('stored answers', () => {
           }
         }
       }
-      expect(kind.read({...stored, sourceHash: 'h'})?.value).toEqual({...stored, sourceHash: 'h'})
+      expect(kind.readStoredValue({...stored, sourceHash: 'h'})?.value).toEqual({
+        ...stored,
+        sourceHash: 'h',
+      })
     },
   )
 })
@@ -146,33 +161,47 @@ describe('reading stored answers', () => {
     ['another kind', {_type: 'jev.score', score: 1, max: 2}],
     ['a missing probability', {_type: 'jev.noul'}],
   ])('treats %s as unanswered', (_name, stored) => {
-    expect(kindOf(readable).read(stored)).toBeUndefined()
+    expect(bindQuestionToKind(readable).readStoredValue(stored)).toBeUndefined()
   })
 
   it('summarises a noul by its probability', () => {
-    const reading = kindOf(readable).read({_type: 'jev.noul', probability: 0.2})
+    const reading = bindQuestionToKind(readable).readStoredValue({
+      _type: 'jev.noul',
+      probability: 0.2,
+    })
     expect(reading?.chip.text).toBe('20%')
     expect(reading?.tone).toBe('critical')
     expect(reading?.aside).toEqual({level: 'low', tone: 'critical'})
     // High probabilities are good news: the card stays neutral.
-    expect(kindOf(readable).read({_type: 'jev.noul', probability: 0.9})?.tone).toBe('default')
+    expect(
+      bindQuestionToKind(readable).readStoredValue({_type: 'jev.noul', probability: 0.9})?.tone,
+    ).toBe('default')
   })
 
   it('summarises a score by its position and nearest criterion', () => {
-    const reading = kindOf(evidence).read({_type: 'jev.score', score: 0.2, max: 2, label: 'none'})
+    const reading = bindQuestionToKind(evidence).readStoredValue({
+      _type: 'jev.score',
+      score: 0.2,
+      max: 2,
+      label: 'none',
+    })
     expect(reading?.chip.text).toBe('0.2/2')
     expect(reading?.aside).toEqual({badge: 'None', tone: 'critical'})
     expect(reading?.tone).toBe('critical')
 
-    const reverse = kindOf({...evidence, colors: 'reverse'})
-    expect(reverse.read({_type: 'jev.score', score: 0.2, max: 2})?.aside).toEqual({
+    const reverse = bindQuestionToKind({...evidence, colors: 'reverse'})
+    expect(reverse.readStoredValue({_type: 'jev.score', score: 0.2, max: 2})?.aside).toEqual({
       badge: 'None',
       tone: 'positive',
     })
   })
 
   it('summarises a choice by its option and what it means', () => {
-    const reading = kindOf(tone).read({_type: 'jev.choice', choice: 'casual', probabilities: []})
+    const reading = bindQuestionToKind(tone).readStoredValue({
+      _type: 'jev.choice',
+      choice: 'casual',
+      probabilities: [],
+    })
     expect(reading?.chip.text).toBe('Casual')
     expect(reading?.aside).toEqual({note: 'Relaxed'})
     expect(reading?.tone).toBe('default')
@@ -181,16 +210,16 @@ describe('reading stored answers', () => {
 
 describe('score criteria', () => {
   it('fills one segment per criterion reached, and part of the next', () => {
-    expect(segmentFills(0.8, 4)).toEqual([1, 0.8, 0, 0].map((n) => expect.closeTo(n)))
-    expect(segmentFills(0, 3)).toEqual([1, 0, 0])
-    expect(segmentFills(2, 3)).toEqual([1, 1, 1])
+    expect(getSegmentFillFractions(0.8, 4)).toEqual([1, 0.8, 0, 0].map((n) => expect.closeTo(n)))
+    expect(getSegmentFillFractions(0, 3)).toEqual([1, 0, 0])
+    expect(getSegmentFillFractions(2, 3)).toEqual([1, 1, 1])
   })
 
   it('splits a criterion into its short label and meaning', () => {
-    expect(shortLabel('anecdotal: personal experience')).toBe('anecdotal')
-    expect(meaningOf('anecdotal: personal experience')).toBe('personal experience')
-    expect(shortLabel('plain')).toBe('plain')
-    expect(meaningOf('plain')).toBe('plain')
+    expect(getCriterionShortLabel('anecdotal: personal experience')).toBe('anecdotal')
+    expect(getCriterionMeaning('anecdotal: personal experience')).toBe('personal experience')
+    expect(getCriterionShortLabel('plain')).toBe('plain')
+    expect(getCriterionMeaning('plain')).toBe('plain')
   })
 })
 
@@ -202,33 +231,37 @@ describe('rules', () => {
   }
 
   it('reports a noul outside its bounds, in percent', () => {
-    const kind = kindOf({...readable, warn: {atLeast: 0.6}, require: {atMost: 0.95}})
-    expect(kind.check('warn', stored.noul(0.42), 'Readable')).toBe('Readable is 42%, below 60%.')
-    expect(kind.check('warn', stored.noul(0.6), 'Readable')).toBeUndefined()
-    expect(kind.check('require', stored.noul(0.97), 'Readable')).toBe('Readable is 97%, above 95%.')
+    const kind = bindQuestionToKind({...readable, warn: {atLeast: 0.6}, require: {atMost: 0.95}})
+    expect(kind.describeRuleViolation('warn', stored.noul(0.42), 'Readable')).toBe(
+      'Readable is 42%, below 60%.',
+    )
+    expect(kind.describeRuleViolation('warn', stored.noul(0.6), 'Readable')).toBeUndefined()
+    expect(kind.describeRuleViolation('require', stored.noul(0.97), 'Readable')).toBe(
+      'Readable is 97%, above 95%.',
+    )
   })
 
   it('reports a score outside its bounds, with the nearest criteria', () => {
-    const kind = kindOf({...evidence, require: {atLeast: 2}})
-    expect(kind.check('require', stored.score(0.6), 'Evidence')).toBe(
+    const kind = bindQuestionToKind({...evidence, require: {atLeast: 2}})
+    expect(kind.describeRuleViolation('require', stored.score(0.6), 'Evidence')).toBe(
       'Evidence is 0.6 (some), below 2 (all).',
     )
-    expect(kind.check('require', stored.score(2), 'Evidence')).toBeUndefined()
+    expect(kind.describeRuleViolation('require', stored.score(2), 'Evidence')).toBeUndefined()
   })
 
   it('reports a choice that is not one of the allowed options', () => {
-    const kind = kindOf({...tone, warn: {oneOf: ['formal']}})
-    expect(kind.check('warn', stored.choice('casual'), 'Tone')).toBe(
+    const kind = bindQuestionToKind({...tone, warn: {oneOf: ['formal']}})
+    expect(kind.describeRuleViolation('warn', stored.choice('casual'), 'Tone')).toBe(
       'Tone is "casual", not "formal".',
     )
-    expect(kind.check('warn', stored.choice('formal'), 'Tone')).toBeUndefined()
+    expect(kind.describeRuleViolation('warn', stored.choice('formal'), 'Tone')).toBeUndefined()
   })
 
   it('says nothing without a rule at that level, or without an answer', () => {
-    const kind = kindOf({...readable, warn: {atLeast: 0.6}})
-    expect(kind.check('require', stored.noul(0.1), 'Readable')).toBeUndefined()
-    expect(kind.check('warn', undefined, 'Readable')).toBeUndefined()
-    expect(kind.check('warn', stored.score(0), 'Readable')).toBeUndefined()
+    const kind = bindQuestionToKind({...readable, warn: {atLeast: 0.6}})
+    expect(kind.describeRuleViolation('require', stored.noul(0.1), 'Readable')).toBeUndefined()
+    expect(kind.describeRuleViolation('warn', undefined, 'Readable')).toBeUndefined()
+    expect(kind.describeRuleViolation('warn', stored.score(0), 'Readable')).toBeUndefined()
   })
 
   it.each([
@@ -246,9 +279,9 @@ describe('rules', () => {
       }),
       'A choice question allows at most 255 options.',
     ],
-  ])('explains a rule or limit that cannot work: %#', (question, problem) => {
-    const kind = kindOf(question)
-    expect(kind.problem).toBe(problem)
+  ])('explains a rule or limit that cannot work: %#', (question, configError) => {
+    const kind = bindQuestionToKind(question)
+    expect(kind.configError).toBe(configError)
     expect(kind.gatewayQuestion).toBeUndefined()
   })
 })

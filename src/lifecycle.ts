@@ -1,11 +1,12 @@
 import {fingerprint} from './content'
 import {evaluateQuestion, JevError, type JevErrorKind, type JevTransport} from './evaluate'
-import {kindOf, type Kind, type Reading, type StoredValue} from './kinds'
-import {titleOf, type JevQuestion, type JevQuestions} from './questions'
+import {bindQuestionToKind, type Kind, type Reading, type StoredValue} from './kinds'
+import {getQuestionTitle, type JevQuestion, type JevQuestions} from './questions'
 
 export interface Clock {
   now(): Date
-  /** Calls back after `ms`. Returns a function that cancels the call. */
+
+  /** Returns a function that cancels the call. */
   after(ms: number, callback: () => void): () => void
 }
 
@@ -13,6 +14,7 @@ const realClock: Clock = {
   now: () => new Date(),
   after(ms, callback) {
     const timeout = setTimeout(callback, ms)
+
     return () => clearTimeout(timeout)
   },
 }
@@ -20,37 +22,54 @@ const realClock: Clock = {
 /** Everything the lifecycle reads about one attached field. Passed whole on every update. */
 export interface LifecycleInputs {
   questions: JevQuestions
+
   /** The attached field's value, flattened to text. */
   state: string
+
   /** Stored answers, by question key. */
   answers: Record<string, unknown>
-  /** How to reach the Gateway. Without one, nothing is evaluated. */
+
+  /** Without one, nothing is evaluated. */
   transport?: JevTransport
+
   /** Stores an answer in its question's answer field. Throws if there is no such field. */
   store: (key: string, value: StoredValue) => void
+
   model: string
+
   /** Reporting tags for every request. Each request also gets a tag naming its question. */
   tags: string[]
+
   /** Document type and field path the per-question tag starts with, e.g. `['article', 'seo']`. */
   tagPath: string[]
+
   readOnly: boolean
+
   debounceMs: number
 }
 
 export interface QuestionView {
   key: string
+
   question: JevQuestion
+
   title: string
+
   /** Why the question's config can't be asked, if it can't. */
-  problem?: string
-  /** The stored answer, as its kind reads it. Absent when the question is unanswered. */
+  configError?: string
+
+  /** Absent when the question is unanswered. */
   reading?: Reading
+
   /** The stored answer's state, question or model has changed since it was evaluated. */
   stale: boolean
+
   /** Waiting to evaluate, or evaluating. */
   loading: boolean
-  /** Why the last evaluation failed. Gateway errors also carry their kind, for translation. */
+
+  /** Gateway errors also carry their kind, for translation. */
   error: QuestionError | null
+
   /** The Gateway rejected the API key on the last evaluation. */
   keyRejected: boolean
 }
@@ -58,47 +77,75 @@ export interface QuestionView {
 export interface QuestionError {
   /** In English. Shown as-is for errors that don't come from the Gateway. */
   message: string
+
   kind?: JevErrorKind
+
   status?: number
+
   /** The Gateway's own explanation, if it gave one. */
   detail?: string
 }
 
+export function toQuestionError(error: unknown): QuestionError {
+  if (error instanceof JevError) {
+    return {message: error.message, kind: error.kind, status: error.status, detail: error.detail}
+  }
+
+  return {message: error instanceof Error ? error.message : String(error)}
+}
+
 export interface LifecycleSnapshot {
   questions: QuestionView[]
-  /** Evaluation is possible: there is a transport, content, and the field is editable. */
+
+  /** There is a transport and content, and the field is editable. */
   canRun: boolean
+
   empty: boolean
+
   /** Any question is loading. */
   loading: boolean
 }
 
 export interface Lifecycle {
   update: (inputs: LifecycleInputs) => void
+
   /** Call just before handing a local edit to the form, so the resulting state counts as local. */
   localEdit: () => void
+
   /** Evaluates the given questions (all by default) now, whoever edited the field last. */
   run: (keys?: string[]) => void
+
   subscribe: (listener: () => void) => () => void
+
   getSnapshot: () => LifecycleSnapshot
+
   /** Cancels timers and requests. A later update starts over with the same inputs. */
   dispose: () => void
 }
 
-type Status =
+type EvaluationStatus =
   | {state: 'loading'; hash: string}
   | {state: 'error'; hash: string; error: QuestionError}
 
-interface Entry {
+interface BoundQuestion {
   key: string
+
   question: JevQuestion
+
   kind: Kind
+
   title: string
+
   /** Fingerprint of the state, question and model: what a stored answer must match to be fresh. */
   hash: string
 }
 
-const EMPTY: LifecycleSnapshot = {questions: [], canRun: false, empty: true, loading: false}
+const EMPTY_SNAPSHOT: LifecycleSnapshot = {
+  questions: [],
+  canRun: false,
+  empty: true,
+  loading: false,
+}
 
 /**
  * The Evaluation lifecycle of the questions on one attached field. Questions evaluate on their own
@@ -107,228 +154,262 @@ const EMPTY: LifecycleSnapshot = {questions: [], canRun: false, empty: true, loa
  */
 export function createLifecycle(clock: Clock = realClock): Lifecycle {
   let inputs: LifecycleInputs | undefined
-  let entries: Entry[] = []
-  /** The state the last local edit produced. Questions only evaluate on their own for it. */
-  let localState: string | undefined
-  let expectLocal = false
+  let boundQuestions: BoundQuestion[] = []
+
+  /** Questions only evaluate on their own for this state. */
+  let stateFromLastLocalEdit: string | undefined
+  let nextStateIsFromLocalEdit = false
 
   // Requests, statuses and automatic attempts all belong to one fingerprint per question.
-  const requests = new Map<string, {controller: AbortController; hash: string}>()
-  const statuses = new Map<string, Status>()
-  const attempted = new Map<string, string>()
+  const requestsInFlight = new Map<string, {controller: AbortController; hash: string}>()
+  const evaluationStatuses = new Map<string, EvaluationStatus>()
+  const lastAttemptedHashes = new Map<string, string>()
 
-  let scheduled: {signature: string; cancel: () => void} | undefined
-  let snapshot = EMPTY
-  let dirty = true
+  let scheduledEvaluation: {signature: string; cancel: () => void} | undefined
+  let snapshot = EMPTY_SNAPSHOT
+  let snapshotIsOutdated = true
   const listeners = new Set<() => void>()
 
   const canRun = (current: LifecycleInputs) =>
     !!current.transport && !current.readOnly && current.state.trim() !== ''
+
+  const getHashesByKey = () => new Map(boundQuestions.map(({key, hash}) => [key, hash]))
 
   function update(next: LifecycleInputs) {
     const previous = inputs
     inputs = next
 
     if (next.state !== previous?.state) {
-      localState = expectLocal ? next.state : undefined
-      expectLocal = false
+      stateFromLastLocalEdit = nextStateIsFromLocalEdit ? next.state : undefined
+      nextStateIsFromLocalEdit = false
     }
 
-    if (
+    const questionsNeedRebinding =
       !previous ||
       next.questions !== previous.questions ||
       next.state !== previous.state ||
       next.model !== previous.model
-    ) {
-      entries = Object.entries(next.questions).map(([key, question]) => {
-        const kind = kindOf(question)
+
+    if (questionsNeedRebinding) {
+      boundQuestions = Object.entries(next.questions).map(([key, question]) => {
+        const kind = bindQuestionToKind(question)
+
         return {
           key,
           question,
           kind,
-          title: titleOf(key, question),
+          title: getQuestionTitle(key, question),
           hash: fingerprint([next.state, kind.gatewayQuestion ?? null, next.model]),
         }
       })
-      forgetObsoleteWork()
-      dirty = true
+
+      cancelWorkForChangedHashes()
+      snapshotIsOutdated = true
     }
 
-    if (
-      previous &&
-      (canRun(next) !== canRun(previous) ||
-        entries.some(({key}) => next.answers[key] !== previous.answers[key]))
-    ) {
-      dirty = true
+    const canRunChanged = previous && canRun(next) !== canRun(previous)
+    const answersChanged =
+      previous && boundQuestions.some(({key}) => next.answers[key] !== previous.answers[key])
+
+    if (canRunChanged || answersChanged) {
+      snapshotIsOutdated = true
     }
 
-    refresh()
+    rebuildSnapshotIfOutdated()
   }
 
-  function forgetObsoleteWork() {
-    const hashes = new Map(entries.map(({key, hash}) => [key, hash]))
-    for (const [key, request] of requests) {
-      if (hashes.get(key) !== request.hash) {
+  function cancelWorkForChangedHashes() {
+    const hashesByKey = getHashesByKey()
+
+    for (const [key, request] of requestsInFlight) {
+      if (hashesByKey.get(key) !== request.hash) {
         request.controller.abort()
-        requests.delete(key)
+        requestsInFlight.delete(key)
       }
     }
-    for (const [key, status] of statuses) {
-      if (hashes.get(key) !== status.hash) statuses.delete(key)
+
+    for (const [key, status] of evaluationStatuses) {
+      if (hashesByKey.get(key) !== status.hash) evaluationStatuses.delete(key)
     }
-    for (const [key, hash] of attempted) {
-      if (hashes.get(key) !== hash) attempted.delete(key)
+
+    for (const [key, hash] of lastAttemptedHashes) {
+      if (hashesByKey.get(key) !== hash) lastAttemptedHashes.delete(key)
     }
   }
 
-  /** Questions that would evaluate on their own: unanswered or stale, and not tried yet. */
-  function pendingKeys(current: LifecycleInputs, views: QuestionView[]): string[] {
-    if (!canRun(current) || localState !== current.state) return []
-    return entries
-      .filter((entry, index) => {
+  /** Unanswered or stale, and not tried yet for the current fingerprint. */
+  function getKeysToEvaluateAutomatically(
+    current: LifecycleInputs,
+    views: QuestionView[],
+  ): string[] {
+    if (!canRun(current) || stateFromLastLocalEdit !== current.state) return []
+
+    return boundQuestions
+      .filter((boundQuestion, index) => {
         const view = views[index]
-        return (
-          entry.kind.gatewayQuestion &&
-          (!view.reading || view.stale) &&
-          attempted.get(entry.key) !== entry.hash
-        )
+        const needsAnswer = !view.reading || view.stale
+        const alreadyAttempted = lastAttemptedHashes.get(boundQuestion.key) === boundQuestion.hash
+
+        return boundQuestion.kind.gatewayQuestion && needsAnswer && !alreadyAttempted
       })
       .map(({key}) => key)
   }
 
-  /** Rebuilds the snapshot and the debounce after anything they depend on changed. */
-  function refresh() {
+  function rebuildSnapshotIfOutdated() {
     const current = inputs
-    if (!current || !dirty) return
-    dirty = false
 
-    const views = entries.map((entry): QuestionView => {
-      const reading = entry.kind.read(current.answers[entry.key])
-      const status = statuses.get(entry.key)
+    if (!current || !snapshotIsOutdated) return
+
+    snapshotIsOutdated = false
+
+    const views = boundQuestions.map((boundQuestion): QuestionView => {
+      const reading = boundQuestion.kind.readStoredValue(current.answers[boundQuestion.key])
+      const status = evaluationStatuses.get(boundQuestion.key)
+
       return {
-        key: entry.key,
-        question: entry.question,
-        title: entry.title,
-        problem: entry.kind.problem,
+        key: boundQuestion.key,
+        question: boundQuestion.question,
+        title: boundQuestion.title,
+        configError: boundQuestion.kind.configError,
         reading,
-        stale: !!reading && reading.value.sourceHash !== entry.hash,
+        stale: !!reading && reading.value.sourceHash !== boundQuestion.hash,
         loading: status?.state === 'loading',
         error: status?.state === 'error' ? status.error : null,
         keyRejected: status?.state === 'error' && status.error.kind === 'auth',
       }
     })
-    const pending = pendingKeys(current, views)
+
+    const keysToEvaluate = getKeysToEvaluateAutomatically(current, views)
+
     // Waiting out the debounce counts as loading, so the spinner shows from the first keystroke.
-    for (const view of views) if (pending.includes(view.key)) view.loading = true
+    for (const view of views) {
+      if (keysToEvaluate.includes(view.key)) view.loading = true
+    }
+
     snapshot = {
       questions: views,
       canRun: canRun(current),
       empty: current.state.trim() === '',
       loading: views.some((view) => view.loading),
     }
-    schedule(pending, current.debounceMs)
+
+    scheduleEvaluationAfterDebounce(keysToEvaluate, current.debounceMs)
+
     for (const listener of listeners) listener()
   }
 
-  function schedule(keys: string[], debounceMs: number) {
-    const hashes = new Map(entries.map(({key, hash}) => [key, hash]))
-    const signature = keys.map((key) => `${key}:${hashes.get(key)}`).join('\n')
-    if (signature === scheduled?.signature) return
-    scheduled?.cancel()
-    scheduled = undefined
+  function scheduleEvaluationAfterDebounce(keys: string[], debounceMs: number) {
+    const hashesByKey = getHashesByKey()
+    const signature = keys.map((key) => `${key}:${hashesByKey.get(key)}`).join('\n')
+
+    if (signature === scheduledEvaluation?.signature) return
+
+    scheduledEvaluation?.cancel()
+    scheduledEvaluation = undefined
+
     if (!signature) return
-    scheduled = {signature, cancel: clock.after(debounceMs, () => run(keys))}
+
+    scheduledEvaluation = {signature, cancel: clock.after(debounceMs, () => run(keys))}
   }
 
-  function setStatus(key: string, status: Status | undefined) {
-    if (status) statuses.set(key, status)
-    else statuses.delete(key)
-    dirty = true
-    refresh()
+  function setEvaluationStatus(key: string, status: EvaluationStatus | undefined) {
+    if (status) evaluationStatuses.set(key, status)
+    else evaluationStatuses.delete(key)
+
+    snapshotIsOutdated = true
+    rebuildSnapshotIfOutdated()
   }
 
   function run(keys?: string[]) {
     const current = inputs
+
     if (!current?.transport || !canRun(current)) return
+
     const {transport, model, state} = current
 
-    for (const entry of entries) {
-      const gatewayQuestion = entry.kind.gatewayQuestion
-      if ((keys && !keys.includes(entry.key)) || !gatewayQuestion) continue
+    for (const boundQuestion of boundQuestions) {
+      const {key, kind, hash} = boundQuestion
+      const gatewayQuestion = kind.gatewayQuestion
 
-      requests.get(entry.key)?.controller.abort()
+      if ((keys && !keys.includes(key)) || !gatewayQuestion) continue
+
+      requestsInFlight.get(key)?.controller.abort()
+
       const controller = new AbortController()
-      requests.set(entry.key, {controller, hash: entry.hash})
-      attempted.set(entry.key, entry.hash)
-      setStatus(entry.key, {state: 'loading', hash: entry.hash})
+      requestsInFlight.set(key, {controller, hash})
+      lastAttemptedHashes.set(key, hash)
+      setEvaluationStatus(key, {state: 'loading', hash})
 
-      const tag = `${entry.kind.typeName}:${[...current.tagPath, entry.key].filter(Boolean).join('.')}`
-      const evaluate = async () => {
+      const fieldPath = [...current.tagPath, key].filter(Boolean).join('.')
+      const questionTag = `${kind.typeName}:${fieldPath}`
+
+      const evaluateAndStore = async () => {
         try {
           const result = await evaluateQuestion({
             transport,
             model,
             state,
             question: gatewayQuestion,
-            tags: [...current.tags, tag],
+            tags: [...current.tags, questionTag],
             signal: controller.signal,
           })
+
           if (controller.signal.aborted) return
+
           // The latest store, so a re-registered answer field still gets its answer.
-          inputs?.store(entry.key, {
-            ...entry.kind.toStored(result.answer),
+          inputs?.store(key, {
+            ...kind.toStoredValue(result.answer),
             evaluatedAt: clock.now().toISOString(),
             model: result.model,
-            sourceHash: entry.hash,
+            sourceHash: hash,
           })
-          requests.delete(entry.key)
-          setStatus(entry.key, undefined)
+
+          requestsInFlight.delete(key)
+          setEvaluationStatus(key, undefined)
         } catch (error) {
           if (controller.signal.aborted) return
-          requests.delete(entry.key)
-          setStatus(entry.key, {
-            state: 'error',
-            hash: entry.hash,
-            error:
-              error instanceof JevError
-                ? {
-                    message: error.message,
-                    kind: error.kind,
-                    status: error.status,
-                    detail: error.detail,
-                  }
-                : {message: error instanceof Error ? error.message : String(error)},
-          })
+
+          requestsInFlight.delete(key)
+          setEvaluationStatus(key, {state: 'error', hash, error: toQuestionError(error)})
         }
       }
-      void evaluate()
+
+      void evaluateAndStore()
     }
   }
 
   return {
     update,
+
     localEdit() {
-      expectLocal = true
+      nextStateIsFromLocalEdit = true
     },
+
     run,
+
     subscribe(listener) {
       listeners.add(listener)
+
       return () => {
         listeners.delete(listener)
       }
     },
+
     getSnapshot: () => snapshot,
+
     dispose() {
-      scheduled?.cancel()
-      scheduled = undefined
+      scheduledEvaluation?.cancel()
+      scheduledEvaluation = undefined
+
       // Requests cut short here were never answered, so they may run again.
-      for (const [key, request] of requests) {
+      for (const [key, request] of requestsInFlight) {
         request.controller.abort()
-        statuses.delete(key)
-        attempted.delete(key)
+        evaluationStatuses.delete(key)
+        lastAttemptedHashes.delete(key)
       }
-      requests.clear()
-      dirty = true
+
+      requestsInFlight.clear()
+      snapshotIsOutdated = true
     },
   }
 }

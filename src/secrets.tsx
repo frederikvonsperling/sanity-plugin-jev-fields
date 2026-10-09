@@ -6,14 +6,25 @@ import {JEV_NAMESPACE} from './i18n'
 import type {JevPluginConfig} from './types'
 
 // Same document shape as @sanity/studio-secrets, so keys stored by either keep working.
-const SECRETS_ID = 'secrets.jev'
-const SECRETS_TYPE = 'pluginSecrets'
+const SECRETS_DOCUMENT_ID = 'secrets.jev'
+const SECRETS_DOCUMENT_TYPE = 'pluginSecrets'
 
 interface StoredKey {
   loading: boolean
+
   apiKey?: string
+
   /** When the secrets document last changed. */
   updatedAt?: string
+}
+
+function readApiKeyFromSecrets(secrets: unknown): string | undefined {
+  const apiKey =
+    secrets && typeof secrets === 'object' && 'gatewayApiKey' in secrets
+      ? secrets.gatewayApiKey
+      : undefined
+
+  return typeof apiKey === 'string' && apiKey ? apiKey : undefined
 }
 
 /** The AI Gateway key stored in `secrets.jev`, kept up to date as it changes. */
@@ -23,19 +34,15 @@ export function useStoredKey(): StoredKey {
 
   useEffect(() => {
     const subscription = documentPreviewStore
-      .unstable_observeDocument(SECRETS_ID)
+      .unstable_observeDocument(SECRETS_DOCUMENT_ID)
       .subscribe((document) => {
-        const secrets = document?.secrets
-        const apiKey =
-          secrets && typeof secrets === 'object' && 'gatewayApiKey' in secrets
-            ? secrets.gatewayApiKey
-            : undefined
         setStored({
           loading: false,
-          apiKey: typeof apiKey === 'string' && apiKey ? apiKey : undefined,
+          apiKey: readApiKeyFromSecrets(document?.secrets),
           updatedAt: document?._updatedAt,
         })
       })
+
     return () => subscription.unsubscribe()
   }, [documentPreviewStore])
 
@@ -45,11 +52,12 @@ export function useStoredKey(): StoredKey {
 /** Stores a new key, or removes the stored one when `apiKey` is undefined. */
 export function useSaveKey() {
   const client = useClient({apiVersion: '2025-02-19'})
+
   return async (apiKey: string | undefined) => {
     await client
       .transaction()
-      .createIfNotExists({_id: SECRETS_ID, _type: SECRETS_TYPE})
-      .patch(SECRETS_ID, (patch) =>
+      .createIfNotExists({_id: SECRETS_DOCUMENT_ID, _type: SECRETS_DOCUMENT_TYPE})
+      .patch(SECRETS_DOCUMENT_ID, (patch) =>
         apiKey ? patch.set({secrets: {gatewayApiKey: apiKey}}) : patch.unset(['secrets']),
       )
       .commit({tag: 'jev.secrets'})
@@ -60,10 +68,15 @@ export type KeySource =
   /** `transport` or `apiKey` in the plugin config: nothing to set up in the Studio. */
   {from: 'config'; apiKey?: string} | {from: 'secrets'; loading: boolean; apiKey?: string}
 
+/** With a `transport` or `apiKey` in the plugin config, the stored key is ignored. */
+export const isKeyFromConfig = (config: JevPluginConfig) => !!(config.transport || config.apiKey)
+
 /** Where the API key comes from: plugin config wins over the stored key. */
 export function useKeySource(config: JevPluginConfig): KeySource {
   const stored = useStoredKey()
-  if (config.transport || config.apiKey) return {from: 'config', apiKey: config.apiKey}
+
+  if (isKeyFromConfig(config)) return {from: 'config', apiKey: config.apiKey}
+
   return {from: 'secrets', loading: stored.loading, apiKey: stored.apiKey}
 }
 
@@ -79,6 +92,7 @@ export function JevKeyDialog({onClose}: {onClose: () => void}) {
   async function save() {
     setSaving(true)
     setError(null)
+
     try {
       await saveKey(value.trim())
       onClose()

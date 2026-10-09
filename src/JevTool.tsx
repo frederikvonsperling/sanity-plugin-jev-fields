@@ -2,19 +2,19 @@ import {Badge, Box, Button, Card, Container, Flex, Heading, Stack, Text} from '@
 import {useState, type ReactNode} from 'react'
 import {Translate, useTranslation} from 'sanity'
 
-import {DEFAULT_MODEL, DEFAULT_TAGS, evaluateQuestion, gatewayTransport, JevError} from './evaluate'
+import {DEFAULT_MODEL, DEFAULT_TAGS, evaluateQuestion, resolveTransport} from './evaluate'
 import {JEV_NAMESPACE} from './i18n'
-import {kindOf} from './kinds'
-import type {QuestionError} from './lifecycle'
+import {bindQuestionToKind} from './kinds'
+import {toQuestionError, type QuestionError} from './lifecycle'
 import {noul} from './questions'
-import {JevKeyDialog, useSaveKey, useStoredKey} from './secrets'
+import {isKeyFromConfig, JevKeyDialog, useSaveKey, useStoredKey} from './secrets'
 import type {JevPluginConfig} from './types'
-import {errorText} from './ui'
+import {translateQuestionError} from './ui'
 
 const Code = ({children}: {children?: ReactNode}) => <code>{children}</code>
 
 // One tiny yes/no question: costs a fraction of a cent.
-const CONNECTION_TEST = kindOf(
+const CONNECTION_TEST_QUESTION = bindQuestionToKind(
   noul({
     instructions: 'Is this text a connection test?',
     true: 'It is a test',
@@ -22,46 +22,58 @@ const CONNECTION_TEST = kindOf(
   }),
 ).gatewayQuestion
 
-type TestState =
+type ConnectionTestState =
   | {state: 'idle'}
   | {state: 'running'}
   | {state: 'passed'; model: string}
   | {state: 'failed'; error: QuestionError}
-
-const asQuestionError = (error: unknown): QuestionError =>
-  error instanceof JevError
-    ? {message: error.message, kind: error.kind, status: error.status, detail: error.detail}
-    : {message: error instanceof Error ? error.message : String(error)}
 
 /** Studio tool for setting, checking and removing the stored AI Gateway key. */
 export function JevTool({config}: {config: JevPluginConfig}) {
   const {t} = useTranslation(JEV_NAMESPACE)
   const stored = useStoredKey()
   const saveKey = useSaveKey()
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [confirmRemove, setConfirmRemove] = useState(false)
-  const [test, setTest] = useState<TestState>({state: 'idle'})
+  const [keyDialogOpen, setKeyDialogOpen] = useState(false)
+  const [isConfirmingRemove, setIsConfirmingRemove] = useState(false)
+  const [connectionTest, setConnectionTest] = useState<ConnectionTestState>({state: 'idle'})
 
   // Same precedence as the fields: transport, then `apiKey` in config, then the stored key.
-  const fromConfig = !!(config.transport || config.apiKey)
-  const apiKey = config.apiKey ?? stored.apiKey
-  const transport =
-    config.transport ?? (apiKey ? gatewayTransport(apiKey, config.endpoint) : undefined)
+  const keyIsFromConfig = isKeyFromConfig(config)
+  const transport = resolveTransport(config, config.apiKey ?? stored.apiKey)
 
   async function testConnection() {
-    if (!transport || !CONNECTION_TEST) return
-    setTest({state: 'running'})
+    if (!transport || !CONNECTION_TEST_QUESTION) return
+
+    setConnectionTest({state: 'running'})
+
     try {
       const result = await evaluateQuestion({
         transport,
         model: config.model ?? DEFAULT_MODEL,
         state: 'This is a connection test.',
-        question: CONNECTION_TEST,
+        question: CONNECTION_TEST_QUESTION,
         tags: [...(config.tags ?? DEFAULT_TAGS), 'jev:connection-test'],
       })
-      setTest({state: 'passed', model: result.model})
+
+      setConnectionTest({state: 'passed', model: result.model})
     } catch (error) {
-      setTest({state: 'failed', error: asQuestionError(error)})
+      setConnectionTest({state: 'failed', error: toQuestionError(error)})
+    }
+  }
+
+  async function removeStoredKey() {
+    setIsConfirmingRemove(false)
+
+    try {
+      await saveKey(undefined)
+      setConnectionTest({state: 'idle'})
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+
+      setConnectionTest({
+        state: 'failed',
+        error: {message: t('tool.key.remove-failed', {error: message})},
+      })
     }
   }
 
@@ -83,10 +95,14 @@ export function JevTool({config}: {config: JevPluginConfig}) {
                   {t('tool.key.heading')}
                 </Heading>
               </Box>
-              <KeyStatus fromConfig={fromConfig} loading={stored.loading} stored={stored.apiKey} />
+              <KeyStatusBadge
+                keyIsFromConfig={keyIsFromConfig}
+                loading={stored.loading}
+                storedKey={stored.apiKey}
+              />
             </Flex>
 
-            {fromConfig ? (
+            {keyIsFromConfig ? (
               <Text size={1} muted>
                 {config.transport ? t('tool.key.from-transport') : t('tool.key.from-config')}
               </Text>
@@ -113,31 +129,33 @@ export function JevTool({config}: {config: JevPluginConfig}) {
             )}
 
             <Flex gap={2} wrap="wrap">
-              {!fromConfig && (
+              {!keyIsFromConfig && (
                 <Button
                   text={stored.apiKey ? t('tool.key.change') : t('tool.key.set')}
                   tone="primary"
                   disabled={stored.loading}
-                  onClick={() => setSettingsOpen(true)}
+                  onClick={() => setKeyDialogOpen(true)}
                 />
               )}
               <Button
-                text={test.state === 'running' ? t('tool.test.running') : t('tool.test.run')}
+                text={
+                  connectionTest.state === 'running' ? t('tool.test.running') : t('tool.test.run')
+                }
                 mode="ghost"
-                disabled={!transport || test.state === 'running'}
+                disabled={!transport || connectionTest.state === 'running'}
                 onClick={testConnection}
               />
-              {!fromConfig && stored.apiKey && !confirmRemove && (
+              {!keyIsFromConfig && stored.apiKey && !isConfirmingRemove && (
                 <Button
                   text={t('tool.key.remove')}
                   mode="bleed"
                   tone="critical"
-                  onClick={() => setConfirmRemove(true)}
+                  onClick={() => setIsConfirmingRemove(true)}
                 />
               )}
             </Flex>
 
-            {confirmRemove && (
+            {isConfirmingRemove && (
               <Card padding={3} radius={2} tone="critical">
                 <Flex align="center" gap={2} wrap="wrap">
                   <Box flex={1}>
@@ -146,37 +164,25 @@ export function JevTool({config}: {config: JevPluginConfig}) {
                   <Button
                     text={t('tool.key.remove-cancel')}
                     mode="bleed"
-                    onClick={() => setConfirmRemove(false)}
+                    onClick={() => setIsConfirmingRemove(false)}
                   />
                   <Button
                     text={t('tool.key.remove-confirm-button')}
                     tone="critical"
-                    onClick={async () => {
-                      setConfirmRemove(false)
-                      try {
-                        await saveKey(undefined)
-                        setTest({state: 'idle'})
-                      } catch (error) {
-                        const message = error instanceof Error ? error.message : String(error)
-                        setTest({
-                          state: 'failed',
-                          error: {message: t('tool.key.remove-failed', {error: message})},
-                        })
-                      }
-                    }}
+                    onClick={removeStoredKey}
                   />
                 </Flex>
               </Card>
             )}
 
-            {test.state === 'passed' && (
+            {connectionTest.state === 'passed' && (
               <Card padding={3} radius={2} tone="positive">
-                <Text size={1}>{t('tool.test.passed', {model: test.model})}</Text>
+                <Text size={1}>{t('tool.test.passed', {model: connectionTest.model})}</Text>
               </Card>
             )}
-            {test.state === 'failed' && (
+            {connectionTest.state === 'failed' && (
               <Card padding={3} radius={2} tone="critical">
-                <Text size={1}>{errorText(t, test.error)}</Text>
+                <Text size={1}>{translateQuestionError(t, connectionTest.error)}</Text>
               </Card>
             )}
           </Stack>
@@ -192,11 +198,11 @@ export function JevTool({config}: {config: JevPluginConfig}) {
         </Stack>
       </Stack>
 
-      {settingsOpen && (
+      {keyDialogOpen && (
         <JevKeyDialog
           onClose={() => {
-            setSettingsOpen(false)
-            setTest({state: 'idle'})
+            setKeyDialogOpen(false)
+            setConnectionTest({state: 'idle'})
           }}
         />
       )}
@@ -204,21 +210,20 @@ export function JevTool({config}: {config: JevPluginConfig}) {
   )
 }
 
-function KeyStatus({
-  fromConfig,
+function KeyStatusBadge({
+  keyIsFromConfig,
   loading,
-  stored,
+  storedKey,
 }: {
-  fromConfig: boolean
+  keyIsFromConfig: boolean
   loading: boolean
-  stored: string | undefined
+  storedKey: string | undefined
 }) {
   const {t} = useTranslation(JEV_NAMESPACE)
-  if (fromConfig) return <Badge tone="primary">{t('tool.key.status.config')}</Badge>
+
+  if (keyIsFromConfig) return <Badge tone="primary">{t('tool.key.status.config')}</Badge>
   if (loading) return <Badge>{t('tool.key.status.checking')}</Badge>
-  return stored ? (
-    <Badge tone="positive">{t('tool.key.status.set')}</Badge>
-  ) : (
-    <Badge tone="caution">{t('tool.key.status.not-set')}</Badge>
-  )
+  if (storedKey) return <Badge tone="positive">{t('tool.key.status.set')}</Badge>
+
+  return <Badge tone="caution">{t('tool.key.status.not-set')}</Badge>
 }

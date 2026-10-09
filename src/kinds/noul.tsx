@@ -6,31 +6,36 @@ import {JEV_NAMESPACE} from '../i18n'
 import {Bar, trafficColor, trafficTone, type Tone} from '../look'
 import {TYPE_NAMES} from '../names'
 import {
-  bookkeepingFields,
-  bookkeepingOf,
-  mismatch,
-  rangeRuleProblem,
-  rangeViolation,
-  round,
-  storedOf,
+  asRecordOfType,
+  describeRangeViolation,
+  evaluationFields,
+  findRangeRuleConfigError,
+  readEvaluationFields,
+  roundToDigits,
+  throwAnswerKindMismatch,
   type EvaluatedValue,
   type Kind,
   type Level,
-  type RangeRule,
   type QuestionBase,
+  type RangeRule,
 } from './kind'
 
 /** @public */
 export interface NoulQuestion extends QuestionBase {
   type: 'noul'
+
   /** What a "yes" means. Shown when the probability is 50% or higher. */
   true: string
+
   /** What a "no" means. Shown when the probability is below 50%. */
   false: string
+
   /** Short phrase after the percentage, e.g. "likely to read easily". */
   label?: string
+
   /** Warn when the probability is outside these bounds (0–1), e.g. `{atLeast: 0.6}`. */
   warn?: RangeRule
+
   /** Block publishing when the probability is outside these bounds (0–1). */
   require?: RangeRule
 }
@@ -44,6 +49,7 @@ export const noul = (question: Omit<NoulQuestion, 'type'>): NoulQuestion => ({
 /** @public */
 export interface NoulValue extends EvaluatedValue {
   _type?: 'jev.noul'
+
   /** Probability (0–1) that the answer is yes. */
   probability?: number
 }
@@ -56,72 +62,86 @@ export const noulSchemaTypes = [
     components: {field: AnswerField},
     fields: [
       defineField({name: 'probability', type: 'number', readOnly: true}),
-      ...bookkeepingFields,
+      ...evaluationFields,
     ],
   }),
 ]
 
-const LEVELS: Partial<Record<Tone, Level>> = {
+const LEVEL_BY_TONE: Partial<Record<Tone, Level>> = {
   critical: 'low',
   caution: 'medium',
   positive: 'high',
 }
 
+const formatAsPercent = (probability: number) => `${Math.round(probability * 100)}%`
+
+function findNoulConfigError(question: NoulQuestion): string | undefined {
+  if (!question.true?.trim() || !question.false?.trim()) {
+    return 'A noul question needs both `true` and `false` text.'
+  }
+
+  return findRangeRuleConfigError(question, 0, 1)
+}
+
 export function bindNoul(question: NoulQuestion): Kind {
-  const problem =
-    !question.true?.trim() || !question.false?.trim()
-      ? 'A noul question needs both `true` and `false` text.'
-      : rangeRuleProblem(question, 0, 1)
+  const configError = findNoulConfigError(question)
+
+  // Jev's API and the Gateway call a noul "boolean".
+  const gatewayQuestion = {
+    type: 'boolean',
+    instructions: question.instructions,
+    criteria: {true: question.true, false: question.false},
+  } as const
 
   return {
     typeName: TYPE_NAMES.noul,
-    // Jev's API and the Gateway call a noul "boolean".
-    gatewayQuestion: !problem
-      ? {
-          type: 'boolean',
-          instructions: question.instructions,
-          criteria: {true: question.true, false: question.false},
-        }
-      : undefined,
-    problem,
+    gatewayQuestion: configError ? undefined : gatewayQuestion,
+    configError,
 
-    toStored(answer) {
-      if (answer.type !== 'boolean') return mismatch()
-      return {_type: TYPE_NAMES.noul, probability: round(answer.probability)}
+    toStoredValue(answer) {
+      if (answer.type !== 'boolean') return throwAnswerKindMismatch()
+
+      return {_type: TYPE_NAMES.noul, probability: roundToDigits(answer.probability)}
     },
 
-    read(stored) {
-      const record = storedOf(stored, TYPE_NAMES.noul)
+    readStoredValue(stored) {
+      const record = asRecordOfType(stored, TYPE_NAMES.noul)
+
       if (!record || typeof record.probability !== 'number') return undefined
+
       const probability = record.probability
       const tone = trafficTone(probability)
+
       return {
-        value: {...bookkeepingOf(record), _type: TYPE_NAMES.noul, probability},
-        chip: {text: `${Math.round(probability * 100)}%`, color: trafficColor(probability)},
+        value: {...readEvaluationFields(record), _type: TYPE_NAMES.noul, probability},
+        chip: {text: formatAsPercent(probability), color: trafficColor(probability)},
         tone: tone === 'positive' ? 'default' : tone,
-        aside: {level: LEVELS[tone] ?? 'medium', tone},
+        aside: {level: LEVEL_BY_TONE[tone] ?? 'medium', tone},
         body: <NoulBody question={question} probability={probability} />,
       }
     },
 
-    check(level, stored, title) {
-      const record = storedOf(stored, TYPE_NAMES.noul)
+    describeRuleViolation(level, stored, title) {
+      const record = asRecordOfType(stored, TYPE_NAMES.noul)
+
       if (!record || typeof record.probability !== 'number') return undefined
-      const percent = (value: number) => `${Math.round(value * 100)}%`
-      const broken = rangeViolation(record.probability, question[level], percent)
-      return broken && `${title} is ${percent(record.probability)}, ${broken}.`
+
+      const violation = describeRangeViolation(record.probability, question[level], formatAsPercent)
+
+      return violation && `${title} is ${formatAsPercent(record.probability)}, ${violation}.`
     },
   }
 }
 
 function NoulBody({question, probability}: {question: NoulQuestion; probability: number}) {
   const {t} = useTranslation(JEV_NAMESPACE)
-  const percent = Math.round(probability * 100)
+  const percent = formatAsPercent(probability)
+
   return (
     <Stack gap={4}>
       <Flex align="baseline" gap={2}>
         <Text size={4} weight="medium">
-          {percent}%
+          {percent}
         </Text>
         {question.label && (
           <Text size={1} muted>
@@ -132,7 +152,7 @@ function NoulBody({question, probability}: {question: NoulQuestion; probability:
       <Bar
         fraction={probability}
         color={trafficColor(probability)}
-        label={`${question.title ?? t('noul.yes')}: ${percent}%`}
+        label={`${question.title ?? t('noul.yes')}: ${percent}`}
       />
       <Text size={1} muted>
         {probability >= 0.5 ? question.true : question.false}
