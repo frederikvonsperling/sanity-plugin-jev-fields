@@ -2,6 +2,7 @@ import {describe, expect, it, vi} from 'vitest'
 
 import invalidKey from './__fixtures__/gateway/error-invalid-key.json'
 import noulFixture from './__fixtures__/gateway/noul.json'
+import type {DocumentObject, DocumentValue} from './content'
 import type {JevRequest, JevTransport} from './evaluate'
 import type {StoredValue} from './kinds'
 import {createLifecycle, type Clock, type LifecycleInputs} from './lifecycle'
@@ -13,7 +14,7 @@ const readable = noul({
   false: 'Dense or jargon-heavy',
 })
 
-const respond = (fixture: {status: number; response: unknown}) =>
+const respond = (fixture: {status: number; response: DocumentValue}) =>
   new Response(JSON.stringify(fixture.response), {status: fixture.status})
 
 /** A clock whose time only moves when a test says so. */
@@ -57,7 +58,7 @@ function heldTransport() {
 function field(questions: JevQuestions = {readable}, overrides: Partial<LifecycleInputs> = {}) {
   const clock = fakeClock()
   const {transport, calls} = heldTransport()
-  const answers: Record<string, unknown> = {}
+  const answers: DocumentObject = {}
   const stores: string[] = []
   const lifecycle = createLifecycle(clock)
 

@@ -1,6 +1,7 @@
 import {Flex, Stack, Text} from '@sanity/ui'
 import {defineField, defineType, useTranslation} from 'sanity'
 
+import {isNumber} from '../content'
 import {AnswerField} from '../context'
 import {JEV_NAMESPACE} from '../i18n'
 import {Bar, trafficColor, trafficTone, type Tone} from '../look'
@@ -47,7 +48,7 @@ export const noul = (question: Omit<NoulQuestion, 'type'>): NoulQuestion => ({
 })
 
 /** @public */
-export interface NoulValue extends EvaluatedValue {
+export type NoulValue = EvaluatedValue & {
   _type?: 'jev.noul'
 
   /** Probability (0–1) that the answer is yes. */
@@ -107,7 +108,7 @@ export function bindNoul(question: NoulQuestion): Kind {
     readStoredValue(stored) {
       const record = asRecordOfType(stored, TYPE_NAMES.noul)
 
-      if (!record || typeof record.probability !== 'number') return undefined
+      if (!record || !isNumber(record.probability)) return undefined
 
       const probability = record.probability
       const tone = trafficTone(probability)
@@ -124,7 +125,7 @@ export function bindNoul(question: NoulQuestion): Kind {
     describeRuleViolation(level, stored, title) {
       const record = asRecordOfType(stored, TYPE_NAMES.noul)
 
-      if (!record || typeof record.probability !== 'number') return undefined
+      if (!record || !isNumber(record.probability)) return undefined
 
       const violation = describeRangeViolation(record.probability, question[level], formatAsPercent)
 

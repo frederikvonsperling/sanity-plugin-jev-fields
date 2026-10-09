@@ -2,6 +2,8 @@
 
 import {existsSync, mkdirSync, writeFileSync} from 'node:fs'
 
+import type {JevRequest} from '../src/evaluate.ts'
+
 const rootEnv = new URL('../.env', import.meta.url)
 
 const outDir = new URL('../src/__fixtures__/gateway/', import.meta.url)
@@ -25,7 +27,13 @@ mkdirSync(outDir, {recursive: true})
 const state =
   'Last year we rewrote our help centre. Support tickets dropped by a third, according to our own dashboard. You can do the same: start with the ten most-read pages.'
 
-const cases: Record<string, {key?: string; body: Record<string, unknown>}> = {
+/** A request to record, with the key to send instead of the real one, if any. */
+interface FixtureCase {
+  key?: string
+  body: Omit<JevRequest, 'providerOptions'>
+}
+
+const cases = {
   'noul': {
     body: {
       model: MODEL,
@@ -99,11 +107,11 @@ const cases: Record<string, {key?: string; body: Record<string, unknown>}> = {
       },
     },
   },
-}
+} satisfies Record<string, FixtureCase>
 
 const only = process.argv.slice(2)
 
-async function record(name: string, {key, body}: (typeof cases)[string]) {
+async function record(name: string, {key, body}: FixtureCase) {
   const response = await fetch(ENDPOINT, {
     method: 'POST',
     headers: {'Authorization': `Bearer ${key ?? apiKey}`, 'Content-Type': 'application/json'},

@@ -1,4 +1,4 @@
-import {fingerprint} from './content'
+import {fingerprint, type DocumentObject} from './content'
 import {evaluateQuestion, JevError, type JevErrorKind, type JevTransport} from './evaluate'
 import {bindQuestionToKind, type Kind, type Reading, type StoredValue} from './kinds'
 import {getQuestionTitle, type JevQuestion, type JevQuestions} from './questions'
@@ -27,7 +27,7 @@ export interface LifecycleInputs {
   state: string
 
   /** Stored answers, by question key. */
-  answers: Record<string, unknown>
+  answers: DocumentObject
 
   /** Without one, nothing is evaluated. */
   transport?: JevTransport
@@ -86,12 +86,12 @@ export interface QuestionError {
   detail?: string
 }
 
-export function toQuestionError(error: unknown): QuestionError {
-  if (error instanceof JevError) {
-    return {message: error.message, kind: error.kind, status: error.status, detail: error.detail}
+export function toQuestionError(cause: unknown): QuestionError {
+  if (cause instanceof JevError) {
+    return {message: cause.message, kind: cause.kind, status: cause.status, detail: cause.detail}
   }
 
-  return {message: error instanceof Error ? error.message : String(error)}
+  return {message: cause instanceof Error ? cause.message : String(cause)}
 }
 
 export interface LifecycleSnapshot {

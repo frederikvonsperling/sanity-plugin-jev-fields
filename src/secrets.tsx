@@ -1,7 +1,8 @@
 import {Box, Button, Card, Dialog, Flex, Stack, Text, TextInput} from '@sanity/ui'
 import {useEffect, useId, useState} from 'react'
-import {useClient, useDocumentPreviewStore, useTranslation} from 'sanity'
+import {useClient, useDocumentPreviewStore, useTranslation, type SanityDocument} from 'sanity'
 
+import {isDocumentObjectValue, isString} from './content'
 import {JEV_NAMESPACE} from './i18n'
 import type {JevPluginConfig} from './types'
 
@@ -19,13 +20,15 @@ interface StoredKey {
   updatedAt?: string
 }
 
-function readApiKeyFromSecrets(secrets: unknown): string | undefined {
-  const apiKey =
-    secrets && typeof secrets === 'object' && 'gatewayApiKey' in secrets
-      ? secrets.gatewayApiKey
-      : undefined
+/** The key in the secrets document's `secrets` object, if one is set. */
+function readApiKeyFromSecrets(document: SanityDocument | undefined): string | undefined {
+  const secrets = document?.secrets
 
-  return typeof apiKey === 'string' && apiKey ? apiKey : undefined
+  if (!isDocumentObjectValue(secrets)) return undefined
+
+  const apiKey = secrets.gatewayApiKey
+
+  return isString(apiKey) && apiKey ? apiKey : undefined
 }
 
 /** The AI Gateway key stored in `secrets.jev`, kept up to date as it changes. */
@@ -39,7 +42,7 @@ export function useStoredKey(): StoredKey {
       .subscribe((document) => {
         setStored({
           loading: false,
-          apiKey: readApiKeyFromSecrets(document?.secrets),
+          apiKey: readApiKeyFromSecrets(document),
           updatedAt: document?._updatedAt,
         })
       })

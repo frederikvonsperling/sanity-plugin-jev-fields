@@ -1,7 +1,7 @@
 import {Box, Flex, Stack, Text} from '@sanity/ui'
 import {defineArrayMember, defineField, defineType} from 'sanity'
 
-import {isRecord} from '../content'
+import {isDocumentObject, isString, type DocumentValue} from '../content'
 import {AnswerField} from '../context'
 import {Bar, capitalize, MUTED_COLOR, NEUTRAL_COLOR} from '../look'
 import {TYPE_NAMES} from '../names'
@@ -70,7 +70,7 @@ export const choice = (question: Omit<ChoiceQuestion, 'type'>): ChoiceQuestion =
   ...question,
 })
 
-interface ChoiceProbability {
+type ChoiceProbability = {
   _key: string
   _type?: 'jev.choiceProbability'
   option?: string
@@ -78,7 +78,7 @@ interface ChoiceProbability {
 }
 
 /** @public */
-export interface ChoiceValue extends EvaluatedValue {
+export type ChoiceValue = EvaluatedValue & {
   _type?: 'jev.choice'
   choice?: string
 
@@ -118,11 +118,11 @@ export const choiceSchemaTypes = [
   }),
 ]
 
-function readStoredProbabilities(stored: unknown): ChoiceProbability[] {
+function readStoredProbabilities(stored: DocumentValue): ChoiceProbability[] {
   if (!Array.isArray(stored)) return []
 
-  return stored.filter(isRecord).map((entry) => ({
-    _key: String(entry._key),
+  return stored.filter(isDocumentObject).map((entry) => ({
+    _key: stringOrUndefined(entry._key) ?? '',
     _type: TYPE_NAMES.choiceProbability,
     option: stringOrUndefined(entry.option),
     probability: numberOrUndefined(entry.probability),
@@ -165,7 +165,7 @@ export function bindChoice(question: ChoiceQuestion): Kind {
     readStoredValue(stored) {
       const record = asRecordOfType(stored, TYPE_NAMES.choice)
 
-      if (!record || typeof record.choice !== 'string') return undefined
+      if (!record || !isString(record.choice)) return undefined
 
       const probabilities = readStoredProbabilities(record.probabilities)
       // `criteria` can be missing from a misconfigured question that still has a stored answer.
@@ -192,7 +192,7 @@ export function bindChoice(question: ChoiceQuestion): Kind {
       const record = asRecordOfType(stored, TYPE_NAMES.choice)
       const rule = question[level]
 
-      if (!record || typeof record.choice !== 'string' || !rule?.oneOf) return undefined
+      if (!record || !isString(record.choice) || !rule?.oneOf) return undefined
 
       if (rule.oneOf.includes(record.choice)) return undefined
 

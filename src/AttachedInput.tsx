@@ -2,7 +2,13 @@ import {Card, Stack, Text} from '@sanity/ui'
 import {useState} from 'react'
 import {useTranslation, type FormPatch, type InputProps, type PatchEvent} from 'sanity'
 
-import {estimateTokenCount, flattenToText, isNearTokenLimit, STATE_TOKEN_LIMIT} from './content'
+import {
+  estimateTokenCount,
+  flattenToText,
+  isDocumentValue,
+  isNearTokenLimit,
+  STATE_TOKEN_LIMIT,
+} from './content'
 import {JEV_NAMESPACE} from './i18n'
 import type {JevQuestions} from './questions'
 import {JevKeyDialog} from './secrets'
@@ -15,7 +21,7 @@ type OnChange = (patch: FormPatch | FormPatch[] | PatchEvent) => void
 export function AttachedInput({questions, ...props}: InputProps & {questions: JevQuestions}) {
   const {t} = useTranslation(JEV_NAMESPACE)
   const parentOnChange: OnChange = props.onChange
-  const state = flattenToText(props.value)
+  const state = isDocumentValue(props.value) ? flattenToText(props.value) : ''
 
   const jev = useQuestions({
     questions,

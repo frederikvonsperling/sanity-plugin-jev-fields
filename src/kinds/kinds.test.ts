@@ -3,12 +3,13 @@ import {describe, expect, it} from 'vitest'
 import choiceFixture from '../__fixtures__/gateway/choice.json'
 import noulFixture from '../__fixtures__/gateway/noul.json'
 import scoreFixture from '../__fixtures__/gateway/score.json'
+import type {DocumentValue} from '../content'
 import type {GatewayAnswer} from '../evaluate'
 import {choice, KIND_SCHEMA_TYPES, bindQuestionToKind, noul, score} from './index'
 import {getCriterionMeaning, getSegmentFillFractions, getCriterionShortLabel} from './score'
 
-// JSON imports lose the literal types of the recorded answers.
-const answerOf = (fixture: {response: {answers: {q: unknown}}}) =>
+const answerOf = (fixture: {response: {answers: {q: DocumentValue}}}) =>
+  // SAFETY: the fixtures are recorded Gateway answers; JSON imports lose their literal types.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   fixture.response.answers.q as GatewayAnswer
 
@@ -52,9 +53,12 @@ describe('questions', () => {
   })
 
   it('explains an unknown question type', () => {
-    const unknownTypeQuestion = {type: 'rating', instructions: 'x'}
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- config from plain JS
-    const kind = bindQuestionToKind(unknownTypeQuestion as unknown as typeof readable)
+    // Config from plain JavaScript, which TypeScript can't check, can name any type.
+    const unknownTypeQuestion: typeof readable = JSON.parse(
+      '{"type": "rating", "instructions": "x"}',
+    )
+
+    const kind = bindQuestionToKind(unknownTypeQuestion)
     expect(kind.configError).toMatch(/unknown/i)
     expect(kind.readStoredValue({_type: 'jev.noul', probability: 1})).toBeUndefined()
   })
@@ -133,7 +137,7 @@ describe('stored answers', () => {
       const kind = bindQuestionToKind(question)
       const stored = kind.toStoredValue(answer)
 
-      const fieldsOf = (name: string) => {
+      const fieldsOf = (name: string | undefined) => {
         const type = KIND_SCHEMA_TYPES.find((other) => other.name === name)
 
         return type && 'fields' in type ? type.fields.map((field) => field.name) : []

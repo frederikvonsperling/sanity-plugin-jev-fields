@@ -1,3 +1,5 @@
+import {isString} from './content'
+
 export const DEFAULT_MODEL = 'typesafe-ai/jev'
 
 export const DEFAULT_ENDPOINT = 'https://ai-gateway.vercel.sh/v1/evaluate'
@@ -190,7 +192,7 @@ function toJevError(status: number, message: string | undefined): JevError {
 }
 
 function readGatewayErrorMessage(body: GatewayResponseBody): string | undefined {
-  return (typeof body.error === 'string' ? body.error : body.error?.message) || undefined
+  return (isString(body.error) ? body.error : body.error?.message) || undefined
 }
 
 /** Honours a short `Retry-After` (in seconds) when it asks for longer than our own backoff. */
@@ -220,7 +222,11 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 export function normalizeTags(tags: string[]): string[] {
-  const trimmedTags = tags.map((tag) => tag.trim().slice(0, MAX_TAG_LENGTH)).filter(Boolean)
+  const trimmedTags = tags.flatMap((tag) => {
+    const trimmedTag = tag.trim().slice(0, MAX_TAG_LENGTH)
+
+    return trimmedTag ? [trimmedTag] : []
+  })
 
   return [...new Set(trimmedTags)].slice(0, MAX_TAGS)
 }

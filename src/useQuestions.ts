@@ -6,9 +6,9 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import {useFormValue, type Path} from 'sanity'
+import {useFormValue, type Path, type PathSegment} from 'sanity'
 
-import {isRecord} from './content'
+import {isDocumentObjectValue, isDocumentValue, isString, type DocumentObject} from './content'
 import {toPathKey, useJevForm} from './context'
 import {DEFAULT_MODEL, DEFAULT_TAGS, resolveTransport} from './evaluate'
 import type {StoredValue} from './kinds'
@@ -21,7 +21,7 @@ export type {QuestionView} from './lifecycle'
 /** Whether there is a way to reach the Gateway yet. */
 export type SetupStatus = 'ready' | 'loading' | 'missing'
 
-const NO_ANSWERS: Record<string, unknown> = {}
+const NO_ANSWERS: DocumentObject = {}
 
 const DEFAULT_DEBOUNCE_MS = 500
 
@@ -36,6 +36,8 @@ interface UseQuestionsArgs {
 
   readOnly: boolean
 }
+
+const isFieldName = (segment: PathSegment): segment is string => typeof segment === 'string'
 
 function getSetupStatus(hasTransport: boolean, keySource: KeySource): SetupStatus {
   if (hasTransport) return 'ready'
@@ -81,8 +83,8 @@ export function useQuestions({questions, path, state, readOnly}: UseQuestionsArg
   // Array items have keyed path segments; collapse them so the tag names the field, not the item.
   const tagPath = useMemo(
     () => [
-      typeof documentType === 'string' ? documentType : '',
-      ...parentPath.map((segment) => (typeof segment === 'string' ? segment : '[]')),
+      isDocumentValue(documentType) && isString(documentType) ? documentType : '',
+      ...parentPath.map((segment) => (isFieldName(segment) ? segment : '[]')),
     ],
     [documentType, parentPath],
   )
@@ -93,7 +95,7 @@ export function useQuestions({questions, path, state, readOnly}: UseQuestionsArg
     lifecycle.update({
       questions,
       state,
-      answers: isRecord(parent) ? parent : NO_ANSWERS,
+      answers: isDocumentObjectValue(parent) ? parent : NO_ANSWERS,
       transport,
       store,
       model: config.model ?? DEFAULT_MODEL,

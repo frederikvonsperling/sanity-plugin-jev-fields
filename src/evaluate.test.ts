@@ -5,6 +5,7 @@ import invalidKey from './__fixtures__/gateway/error-invalid-key.json'
 import invalidQuestion from './__fixtures__/gateway/error-invalid-question.json'
 import noul from './__fixtures__/gateway/noul.json'
 import score from './__fixtures__/gateway/score.json'
+import type {DocumentValue} from './content'
 import {
   evaluateQuestion,
   createGatewayTransport,
@@ -15,12 +16,12 @@ import {
 } from './evaluate'
 
 interface Fixture {
-  request: {state: string | Record<string, string>; questions: {q: unknown}}
+  request: {state: string | Record<string, string>; questions: {q: DocumentValue}}
   status: number
-  response: unknown
+  response: DocumentValue
 }
 
-const respond = (status: number, body: unknown, headers?: Record<string, string>) =>
+const respond = (status: number, body: DocumentValue, headers?: Record<string, string>) =>
   new Response(JSON.stringify(body), {status, headers})
 
 /** A transport that replays the given responses in order and records each request. */
@@ -44,7 +45,8 @@ function ask(fixture: Fixture, transport: JevTransport, overrides = {}) {
     transport,
     model: 'typesafe-ai/jev',
     state: fixture.request.state,
-    // The fixtures were recorded from these exact questions; JSON imports lose the literal types.
+    // SAFETY: the fixtures were recorded from these exact questions; JSON imports lose the
+    // literal types.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     question: fixture.request.questions.q as GatewayQuestion,
     tags: ['feature:jev-fields'],
@@ -69,7 +71,7 @@ describe('evaluateQuestion against recorded Gateway responses', () => {
 
   it('reports a rejected key as an auth error without retrying', async () => {
     const {transport} = replay(respond(invalidKey.status, invalidKey.response))
-    const error = await ask(noul, transport).catch((e: unknown) => e)
+    const error = await ask(noul, transport).catch((cause: unknown) => cause)
     expect(error).toBeInstanceOf(JevError)
     expect(error).toMatchObject({kind: 'auth', status: 401})
     expect(transport).toHaveBeenCalledTimes(1)

@@ -1,6 +1,12 @@
 import {describe, expect, it} from 'vitest'
 
-import {estimateTokenCount, fingerprint, isNearTokenLimit, flattenToText} from './content'
+import {
+  estimateTokenCount,
+  fingerprint,
+  flattenToText,
+  isDocumentValue,
+  isNearTokenLimit,
+} from './content'
 
 const block = (text: string) => ({
   _type: 'block',
@@ -25,6 +31,21 @@ describe('flattenToText', () => {
     expect(flattenToText(undefined)).toBe('')
     expect(flattenToText(null)).toBe('')
     expect(flattenToText([])).toBe('')
+  })
+})
+
+describe('isDocumentValue', () => {
+  it('accepts JSON as Sanity stores it, including fields left undefined while editing', () => {
+    expect(isDocumentValue([block('First.')])).toBe(true)
+    expect(isDocumentValue({_type: 'slug', current: undefined})).toBe(true)
+    expect(isDocumentValue(Object.create(null))).toBe(true)
+    expect(isDocumentValue(null)).toBe(true)
+  })
+
+  it('rejects anything JSON cannot hold, however deep', () => {
+    expect(isDocumentValue(() => 'x')).toBe(false)
+    expect(isDocumentValue(new Date())).toBe(false)
+    expect(isDocumentValue({seo: {tags: [Symbol('x')]}})).toBe(false)
   })
 })
 
