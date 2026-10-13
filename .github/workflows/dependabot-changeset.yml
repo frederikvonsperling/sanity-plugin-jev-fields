@@ -1,0 +1,43 @@
+name: Dependabot changeset
+
+# Adds a changeset to a Dependabot PR that changes the plugin's runtime `dependencies`, so the
+# update reaches npm in the next release. Dev dependency and lockfile-only PRs are left alone.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write # push the changeset commit
+  actions: write # start CI for that commit
+
+jobs:
+  changeset:
+    # Only Dependabot's own pushes: a rebase drops the changeset commit, so it's written again.
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          # The script reads package.json as it was where the PR branched off.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - id: changeset
+        run: node scripts/dependabot-changeset.ts
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+      # A push with GITHUB_TOKEN doesn't trigger workflows, so CI is started by hand to give the
+      # new commit the required `check`.
+      - if: steps.changeset.outputs.written == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .changeset
+          git commit --message 'Add changeset'
+          git push
+          gh workflow run ci.yml --ref "$GITHUB_HEAD_REF"
+        env:
+          GH_TOKEN: ${{ github.token }}

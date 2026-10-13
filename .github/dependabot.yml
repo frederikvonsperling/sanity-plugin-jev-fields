@@ -1,0 +1,32 @@
+version: 2
+
+updates:
+  # Covers pnpm too: Dependabot reads pnpm-lock.yaml under the npm ecosystem.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Only rewrite a range in package.json when the new version falls outside it. In-range
+    # updates then touch the lockfile alone, which npm users never get, so they need no
+    # changeset. A runtime dependency that leaves its range gets one from dependabot-changeset.yml.
+    versioning-strategy: increase-if-necessary
+    # Give the community a few days to catch a compromised or broken release first.
+    # Security updates ignore the cooldown.
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+      dependencies:
+        dependency-type: production
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ['*']

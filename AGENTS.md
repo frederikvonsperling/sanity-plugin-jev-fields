@@ -15,6 +15,7 @@ Questions are re-evaluated after an undo, too.
 - **Bump level:** `major` for breaking changes, `minor` for new features, `patch` for fixes. Breaking means anything a user must change for: a stored answer's shape or type name (frontends query them, and old content needs a migration), a removed or renamed option, export or translation key, or a higher peer range floor.
 - **Summary:** one or two sentences for plugin users, saying what changes for them. It becomes their CHANGELOG entry.
 - PRs that only touch docs, tests, CI or internals with unchanged behaviour ship without one. A bot comment on each PR shows whether it has a changeset.
+- Dependabot PRs that change `dependencies` get a patch changeset from the `Dependabot changeset` workflow. Reword it, or raise the bump, when an update changes what users get.
 
 ## Vocabulary and decisions
 
