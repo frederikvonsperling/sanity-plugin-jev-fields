@@ -73,7 +73,7 @@
     "react-dom": "^19.3.0",
     "sanity": "^6.18.0",
     "styled-components": "^6.5.3",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
   "peerDependencies": {
