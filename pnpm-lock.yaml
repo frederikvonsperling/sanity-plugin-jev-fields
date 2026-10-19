@@ -13,7 +13,7 @@ importers:
         version: 5.2.3(react@19.3.0)
       '@sanity/ui':
         specifier: ^4.3.3
-        version: 4.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(styled-components@6.6.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
+        version: 4.4.8(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(styled-components@6.6.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
     devDependencies:
       '@changesets/cli':
         specifier: ^3.0.3
@@ -2324,10 +2324,9 @@ packages:
     peerDependencies:
       '@types/react': '*'
 
-  '@sanity/ui@4.4.0':
-    resolution: {integrity: sha512-1xEHO8jRbRi2SBpmznPJV82oYDpUR/Am2ZGb8+IkF0sgCfnWhZlDKwvSBYppujrOFj4+WifORpHs2I7hs0Odtw==}
+  '@sanity/ui@4.4.8':
+    resolution: {integrity: sha512-nXTN95Ls0LYnoSwvXQLE9DxzoOG9/0jDj99UDmuTl3JC6nouU3D4slIzCRLJW67y2KSzOm0IaDQFoLIXAWNhFw==}
     engines: {node: '>=22.12'}
-    deprecated: Class names collide with @sanity/ui 4.4.4 (shipped in sanity@6.19.0) when both load on one page, breaking styles. Upgrade to @sanity/ui@^4.4.4.
     peerDependencies:
       react: ^19.2
       react-dom: ^19.2
@@ -3386,8 +3385,8 @@ packages:
       react-dom:
         optional: true
 
-  framer-motion@14.1.0:
-    resolution: {integrity: sha512-QsdZSdWoyQfUmgi+GZfow8Du5COG6VRYEo9FlgKUPgH87/Le/fYekHCAKwLdYKHdCZcZfWHg4iOxlD6RoqXciQ==}
+  framer-motion@14.3.0:
+    resolution: {integrity: sha512-d8WCrU0ZQn7ukKMykCsDyIOwb/taZeDqqrDBK0du5GO0AO/ynz8fdR/LIIz9Pyy3n3tGwrneR+n0egyrrLa3fw==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
@@ -4098,14 +4097,14 @@ packages:
   motion-dom@14.0.0:
     resolution: {integrity: sha512-aU3ApXo1yTpeUi3JU+jbDk2TELjxPE3MbBMUP7nZHlARb6RweJK+ojmLjpuB0YsY6zhbBl1YWGo8LMsI1/Llqw==}
 
-  motion-dom@14.1.0:
-    resolution: {integrity: sha512-FyFLkNUAAETzCvf851mZcl+v+kaZrKq+UM+XmkY4G8n+ny/WYfiWh9j0fhSQ1KOKVQrM9/cLO11THO2k71HJlg==}
+  motion-dom@14.3.0:
+    resolution: {integrity: sha512-rcKO4aEJzAqDEsrH6qFzhLZxs7bNqZpiUEuEATz9LaRwt6dG7hZEbcFUSHNR8NECaKYM0Iuw6Iv6NpWEGXDI+w==}
 
   motion-utils@14.0.0:
     resolution: {integrity: sha512-jBsyjVxTTRZNeuvd/v+btVXr90LQkYl4HhRu9T2ARc+PMnvkmjsjRVeAg4Qm10b6TlTw+kykWI8gu/6LuvpLSQ==}
 
-  motion-utils@14.1.0:
-    resolution: {integrity: sha512-xd4FeWOnnXsJHmAaRCLNbOS7mEaNOangjMt3Pl241H07f1kxW48fADQ/8O5hLLNhf1qdlozgY3PPAHBdOoU7AA==}
+  motion-utils@14.1.1:
+    resolution: {integrity: sha512-3VvN5Uvf8B6qG+OfOui6Nht5EWp+vLuU3IqcAj7ItZGKqtmTjCebl5sGZF7/08gEHRnEl1AP/fIwbcEyVrcQGQ==}
 
   motion@14.0.0:
     resolution: {integrity: sha512-oGc2lkge2lkRZCP+J8/JsnYu4NFjqP1MtXirNdetn3QbvK2JqwM9A200EdT4C598KfzDhjLT12zF21xDM4Oilw==}
@@ -4118,8 +4117,8 @@ packages:
       react-dom:
         optional: true
 
-  motion@14.1.0:
-    resolution: {integrity: sha512-lsCsW9uJ+iMJj8MSiLccpUC+ZUpoSspaX6Pm78KrnZKMioCPAPG6WeG1d1d/Ywg+z1mny+STP6VyEYW+3nAqNw==}
+  motion@14.3.0:
+    resolution: {integrity: sha512-yh/nHYjikl68+FTxAMywFYzzj21/oGY7RGCfkqN5zpuT1rk3rp0lKfVU8EUq0A64qQeGnxuKUJWP85MipqdLBw==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
@@ -4516,6 +4515,9 @@ packages:
 
   react-is@19.3.0:
     resolution: {integrity: sha512-UpMYezM4v5/18F28aC66AEsjXIgE02kyEMH6yLdgLXu/UTfa1Ntwck/nNLrbqJsEXW7gPb0coNO9FQse9WTovA==}
+
+  react-is@19.3.1:
+    resolution: {integrity: sha512-RRieF6IyxQBkcK6pP8xOHprLTPW6QjRkbGdImtqNme+/hYVwCZkLQLdlZGOhUqXwkS9IEynaGvPJtv6XB/cz0Q==}
 
   react-refractor@4.0.0:
     resolution: {integrity: sha512-2VMRH3HA/Nu+tMFzyQwdBK0my0BIZy1pkWHhjuSrplMyf8ZLx/Gw7tUXV0t2JbEsbSNHbEc9TbHhq3sUx2seVA==}
@@ -7428,7 +7430,7 @@ snapshots:
     dependencies:
       '@sanity/client': 8.9.0(vitest@4.1.11(@types/node@24.19.1)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))
       '@sanity/icons': 5.2.3(react@19.3.0)
-      '@sanity/ui': 4.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(styled-components@6.6.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
+      '@sanity/ui': 4.4.8(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(styled-components@6.6.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
       react: 19.3.0
       ui5: '@sanity/ui@5.0.0-alpha.14(react-dom@19.3.0(react@19.3.0))(react@19.3.0)'
     transitivePeerDependencies:
@@ -8099,18 +8101,17 @@ snapshots:
     transitivePeerDependencies:
       - vitest
 
-  '@sanity/ui@4.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(styled-components@6.6.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))':
+  '@sanity/ui@4.4.8(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(styled-components@6.6.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))':
     dependencies:
       '@floating-ui/react-dom': 2.1.9(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@sanity/color': 3.0.9
       '@sanity/icons': 5.2.3(react@19.3.0)
-      '@vanilla-extract/dynamic': 2.1.5
       clsx: 2.1.1
       csstype: 3.2.3
-      motion: 14.1.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      motion: 14.3.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
-      react-is: 19.3.0
+      react-is: 19.3.1
       react-refractor: 4.0.0(react@19.3.0)
       styled-components: 6.6.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       use-effect-event: 2.0.4(react@19.3.0)
@@ -9191,10 +9192,10 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
 
-  framer-motion@14.1.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  framer-motion@14.3.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
-      motion-dom: 14.1.0
-      motion-utils: 14.1.0
+      motion-dom: 14.3.0
+      motion-utils: 14.1.1
       tslib: 2.8.1
     optionalDependencies:
       react: 19.3.0
@@ -9838,13 +9839,13 @@ snapshots:
     dependencies:
       motion-utils: 14.0.0
 
-  motion-dom@14.1.0:
+  motion-dom@14.3.0:
     dependencies:
-      motion-utils: 14.1.0
+      motion-utils: 14.1.1
 
   motion-utils@14.0.0: {}
 
-  motion-utils@14.1.0: {}
+  motion-utils@14.1.1: {}
 
   motion@14.0.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
@@ -9854,9 +9855,9 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
 
-  motion@14.1.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  motion@14.3.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
-      framer-motion: 14.1.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      framer-motion: 14.3.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       tslib: 2.8.1
     optionalDependencies:
       react: 19.3.0
@@ -10236,6 +10237,8 @@ snapshots:
 
   react-is@19.3.0: {}
 
+  react-is@19.3.1: {}
+
   react-refractor@4.0.0(react@19.3.0):
     dependencies:
       react: 19.3.0
@@ -10454,7 +10457,7 @@ snapshots:
       '@sanity/sdk-react': 3.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(use-sync-external-store@1.7.0(react@19.3.0))(vitest@4.1.11(@types/node@24.19.1)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))(xstate@5.33.2)
       '@sanity/telemetry': 1.1.0(react@19.3.0)
       '@sanity/types': 6.18.0(@types/react@19.3.0)(vitest@4.1.11(@types/node@24.19.1)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))
-      '@sanity/ui': 4.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(styled-components@6.6.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
+      '@sanity/ui': 4.4.8(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(styled-components@6.6.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
       '@sanity/util': 6.18.0(@types/react@19.3.0)(vitest@4.1.11(@types/node@24.19.1)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))
       '@sanity/uuid': 3.0.3
       '@sanity/validation': 6.18.0(@types/react@19.3.0)(typescript@6.0.3)(vitest@4.1.11(@types/node@24.19.1)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.3(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))
